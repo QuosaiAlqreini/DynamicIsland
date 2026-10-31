@@ -1,0 +1,10 @@
+﻿# Ralph Progress Log
+Started: 2026-10-31 16:50
+---
+
+## Codebase Patterns
+- Follow atomic commits: 'feat: [Story ID] - [Story Title]'
+- Run quality checks before marking passes: true in prd.json
+- Run 'coderabbit review --agent' to catch edge cases before committing
+---
+

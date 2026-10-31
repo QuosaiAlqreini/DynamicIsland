@@ -1,0 +1,105 @@
+{
+  "project": "DynamicIsland",
+  "branchName": "main",
+  "description": "Dynamic Island for Windows with Native Media, System Monitor, and AI Companion Hub (Antigravity & Claude Code)",
+  "qualityChecks": {
+    "syntaxCheck": "python -m py_compile app.py",
+    "codeReview": "coderabbit review --agent"
+  },
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Core Frameless Island Window & Smooth Animation Engine",
+      "description": "Implement a topmost, transparent, rounded glassmorphic pill window with spring animations for expanding/collapsing.",
+      "acceptanceCriteria": [
+        "Frameless window with transparent background and rounded pill shape",
+        "Top-centered placement on primary screen with drag-to-position",
+        "QPropertyAnimation with smooth spring/easing curve for state transitions"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Compact Idle Pill with Clock, Battery, and Pulsating AI Glow",
+      "description": "Create the default idle compact pill state displaying essential glanceable metrics.",
+      "acceptanceCriteria": [
+        "Compact pill (190x36px) showing live time, battery indicator, and AI glow",
+        "Hover expansion trigger with configurable delay/sensitivity",
+        "Audio wave mini indicator when media is playing"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Native Windows Media Session Integration",
+      "description": "Integrate winsdk to read active media sessions (Spotify, YouTube, Media Player) and provide play/pause/prev/next controls.",
+      "acceptanceCriteria": [
+        "Read current media title, artist, playback status via winsdk",
+        "Controls: Play/Pause, Next Track, Previous Track",
+        "Dynamic audio visualizer animation bars",
+        "Graceful fallback if no media player is active"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Hardware Performance Monitor",
+      "description": "Display real-time CPU, RAM, and Battery gauges with responsive circular or bar indicators.",
+      "acceptanceCriteria": [
+        "Real-time CPU percentage gauge using psutil background worker",
+        "Real-time RAM percentage and memory usage",
+        "Battery percentage, charging state, and power plan info"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "AI Companion Hub (Antigravity & Claude Code Agent Bar)",
+      "description": "Interactive AI Assistant bar in the island with agent status, prompt input, clipboard code fixer, Ralph Loop runner, and CodeRabbit reviewer.",
+      "acceptanceCriteria": [
+        "Agent status pill (Idle, Thinking, Coding, Auditing)",
+        "Quick Prompt input field with inline response card",
+        "One-click 'Fix/Explain Clipboard' action for code snippets",
+        "Quick action buttons to trigger Ralph Loop and CodeRabbit CLI"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Quick Utilities HUD & Action Bar",
+      "description": "Provide quick system controls: volume slider, brightness/screen snip, terminal launch, mute toggle.",
+      "acceptanceCriteria": [
+        "Volume slider with live audio feedback",
+        "One-click Screenshot/Snipping tool launcher",
+        "One-click Terminal (PowerShell) launcher",
+        "Focus / Do Not Disturb toggle"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "Theme Engine & Windows System Tray",
+      "description": "Support multiple visual themes (Obsidian, Cyberpunk, Nord, White) and a system tray icon with context menu.",
+      "acceptanceCriteria": [
+        "5 distinct themes with dynamic color accents",
+        "System tray icon with menu (Show/Hide, Theme selector, Agent Mode, Exit)",
+        "Configuration saved to user settings JSON"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}
