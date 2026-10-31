@@ -6,6 +6,7 @@ from PyQt6.QtCore import Qt
 from services.media_service import MediaService
 from services.system_service import SystemMonitorService
 from services.ai_service import AIService
+from services.taskbar_service import TaskbarService
 from island_window import DynamicIslandWindow
 from styles import THEMES
 
@@ -38,9 +39,10 @@ def main():
     media_service = MediaService(interval_ms=1000)
     sys_service = SystemMonitorService(interval_ms=1000)
     ai_service = AIService()
+    taskbar_service = TaskbarService()
 
     # Initialize Main Island Window
-    island = DynamicIslandWindow(media_service, sys_service, ai_service)
+    island = DynamicIslandWindow(media_service, sys_service, ai_service, taskbar_service)
     island.show()
 
     # Initialize System Tray
@@ -76,6 +78,20 @@ def main():
     show_action = tray_menu.addAction("👁️ Toggle Island")
     show_action.triggered.connect(toggle_island)
 
+    # Settings & Accounts Action
+    settings_action = tray_menu.addAction("⚙️ Preferences & AI Accounts")
+    settings_action.triggered.connect(island.open_settings_dialog)
+
+    # MacBook Mode (Taskbar Auto-Hide) Action
+    def toggle_macbook_mode():
+        cur = taskbar_service.is_autohide_enabled()
+        taskbar_service.set_autohide(not cur)
+
+    mb_action = tray_menu.addAction("🍏 MacBook Mode (Auto-Hide Taskbar)")
+    mb_action.setCheckable(True)
+    mb_action.setChecked(taskbar_service.is_autohide_enabled())
+    mb_action.triggered.connect(toggle_macbook_mode)
+
     # AI companion
     def open_ai():
         island.show()
@@ -84,6 +100,16 @@ def main():
 
     ai_action = tray_menu.addAction("🤖 Open AI Companion")
     ai_action.triggered.connect(open_ai)
+
+    # Screen Vision Trigger
+    def capture_screen_ai():
+        island.show()
+        island.expand()
+        island._switch_tab(2)
+        ai_service.analyze_screen()
+
+    vision_action = tray_menu.addAction("👀 See Screen & Analyze")
+    vision_action.triggered.connect(capture_screen_ai)
 
     # Themes submenu
     theme_menu = tray_menu.addMenu("🎨 Themes")

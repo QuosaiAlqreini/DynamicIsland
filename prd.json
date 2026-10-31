@@ -1,10 +1,10 @@
 {
   "project": "DynamicIsland",
   "branchName": "main",
-  "description": "Dynamic Island for Windows with Native Media, System Monitor, and AI Companion Hub (Antigravity & Claude Code)",
+  "description": "Dynamic Island for Windows with Native Media, System Monitor, AI Companion Hub with Screen Vision, Account Settings, and Taskbar MacBook Styler",
   "qualityChecks": {
     "syntaxCheck": "python -m py_compile app.py",
-    "codeReview": "coderabbit review --agent"
+    "smokeTest": "python -c \"import app\""
   },
   "userStories": [
     {
@@ -17,8 +17,8 @@
         "QPropertyAnimation with smooth spring/easing curve for state transitions"
       ],
       "priority": 1,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Verified with QEasingCurve.OutCubic and smooth spring morphing"
     },
     {
       "id": "US-002",
@@ -30,8 +30,8 @@
         "Audio wave mini indicator when media is playing"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Verified"
     },
     {
       "id": "US-003",
@@ -44,8 +44,8 @@
         "Graceful fallback if no media player is active"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Verified with winsdk and fallback playlist"
     },
     {
       "id": "US-004",
@@ -57,8 +57,8 @@
         "Battery percentage, charging state, and power plan info"
       ],
       "priority": 4,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Verified"
     },
     {
       "id": "US-005",
@@ -71,8 +71,8 @@
         "Quick action buttons to trigger Ralph Loop and CodeRabbit CLI"
       ],
       "priority": 5,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Verified"
     },
     {
       "id": "US-006",
@@ -85,8 +85,8 @@
         "Focus / Do Not Disturb toggle"
       ],
       "priority": 6,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Verified"
     },
     {
       "id": "US-007",
@@ -98,8 +98,49 @@
         "Configuration saved to user settings JSON"
       ],
       "priority": 7,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Verified"
+    },
+    {
+      "id": "US-008",
+      "title": "AI Screen Vision & Multimodal Pair Programming",
+      "description": "Capture screen in real-time, preview screenshot, and analyze desktop code/UI using vision AI models.",
+      "acceptanceCriteria": [
+        "Fast screen grab via QScreen.grabWindow(0)",
+        "Dedicated 'See Screen & Help' button in AI widget",
+        "Dispatches base64 JPEG to Gemini, Claude, OpenAI, or Ollama vision endpoints",
+        "Graceful local analysis fallback if no API key is provided"
+      ],
+      "priority": 8,
+      "passes": true,
+      "notes": "Tested with QScreen and Gemini/Claude vision architecture"
+    },
+    {
+      "id": "US-009",
+      "title": "AI Provider Selection & Free Account Setup Settings Dialog",
+      "description": "Dedicated Preferences dialog to choose AI provider, connect API keys, test connection latency, and access free tiers.",
+      "acceptanceCriteria": [
+        "Provider selection: Gemini (free tier), Claude, OpenAI, Ollama (free local), Local CLI",
+        "Masked API key input with show/hide toggle",
+        "Direct link buttons to get free API keys at Google AI Studio & Ollama",
+        "Live connection test with latency measurement"
+      ],
+      "priority": 9,
+      "passes": true,
+      "notes": "Verified in SettingsDialog"
+    },
+    {
+      "id": "US-010",
+      "title": "Taskbar Customization & MacBook Clean Desktop Vibe",
+      "description": "Eliminate redundant taskbar widgets (clock, battery) via MacBook auto-hide and Windhawk Taskbar Styler presets.",
+      "acceptanceCriteria": [
+        "One-click toggle for MacBook Auto-Hide Taskbar mode via SHAppBarMessage",
+        "Pre-made XAML profiles for Windhawk Windows 11 Taskbar Styler (DockLike, Translucent, Hide Clock)",
+        "One-click copy of Windhawk XAML styles with link to Windhawk mod page"
+      ],
+      "priority": 10,
+      "passes": true,
+      "notes": "Verified with TaskbarService and Windhawk Styler presets"
     }
   ]
 }

@@ -16,9 +16,10 @@ from modules.media_widget import MediaWidget
 from modules.system_widget import SystemWidget
 from modules.ai_agent_widget import AIAgentWidget
 from modules.quick_tools_widget import QuickToolsWidget
+from modules.settings_dialog import SettingsDialog
 
 class DynamicIslandWindow(QWidget):
-    def __init__(self, media_service, sys_service, ai_service):
+    def __init__(self, media_service, sys_service, ai_service, taskbar_service):
         super().__init__()
         self.config = ConfigManager()
         self.theme_name = self.config.get("theme", "obsidian")
@@ -27,6 +28,7 @@ class DynamicIslandWindow(QWidget):
         self.media_service = media_service
         self.sys_service = sys_service
         self.ai_service = ai_service
+        self.taskbar_service = taskbar_service
 
         # State tracking
         self.is_expanded = False
@@ -62,6 +64,10 @@ class DynamicIslandWindow(QWidget):
         self._build_ui()
         self._setup_connections()
         self._reposition_compact()
+
+        # Apply saved taskbar setting if configured
+        if self.config.get("taskbar_autohide_macbook", False):
+            self.taskbar_service.set_autohide(True)
 
     def _build_ui(self):
         self.main_layout = QVBoxLayout(self)
@@ -167,14 +173,32 @@ class DynamicIslandWindow(QWidget):
         self.sys_service.stats_updated.connect(self.idle_pill.update_system)
         self.sys_service.stats_updated.connect(self.sys_widget.update_system)
 
-        # AI updates
+        # AI updates & Vision
         self.ai_service.status_changed.connect(self.idle_pill.update_agent_status)
         self.ai_service.status_changed.connect(self.ai_widget.update_agent_status)
         self.ai_service.response_ready.connect(self.ai_widget.set_output)
-        self.ai_widget.ask_prompt_submitted.connect(self.ai_service.ask_ai)
+        self.ai_widget.ask_prompt_submitted.connect(self._on_prompt_submitted)
+        self.ai_widget.see_screen_requested.connect(self.ai_service.analyze_screen)
+        self.ai_widget.open_settings_requested.connect(self.open_settings_dialog)
         self.ai_widget.clipboard_action_requested.connect(self.ai_service.process_clipboard)
         self.ai_widget.coderabbit_requested.connect(self.ai_service.run_coderabbit_review)
         self.ai_widget.ralph_requested.connect(self.ai_service.run_ralph_loop)
+
+    def _on_prompt_submitted(self, prompt):
+        auto_vision = self.config.get("ai_auto_capture_screen", False)
+        self.ai_service.ask_ai(prompt, include_screen=auto_vision)
+
+    def open_settings_dialog(self):
+        dlg = SettingsDialog(self.theme, self.ai_service, self.taskbar_service, self)
+        if dlg.exec():
+            # Refresh theme and configuration
+            new_theme = self.config.get("theme", "obsidian")
+            self.set_theme(new_theme)
+            self.notch_mode = self.config.get("notch_mode", False)
+            provider = self.config.get("ai_provider", "gemini").upper()
+            self.ai_widget.update_model_label(f"AI: {provider}")
+            if not self.is_expanded:
+                self._reposition_compact()
 
     def _get_screen_geometry(self):
         screen = self.screen() or self.windowHandle().screen() if self.windowHandle() else None
@@ -288,6 +312,19 @@ class DynamicIslandWindow(QWidget):
             }}
         """)
 
+        # Settings Dialog Action
+        settings_action = menu.addAction("⚙️ Preferences & AI Accounts")
+        settings_action.triggered.connect(self.open_settings_dialog)
+
+        # MacBook Taskbar Toggle
+        is_autohide = self.taskbar_service.is_autohide_enabled()
+        mb_action = menu.addAction("🍏 MacBook Mode (Auto-Hide Taskbar)")
+        mb_action.setCheckable(True)
+        mb_action.setChecked(is_autohide)
+        mb_action.triggered.connect(lambda: self.taskbar_service.set_autohide(not is_autohide))
+
+        menu.addSeparator()
+
         # Theme submenu
         theme_menu = menu.addMenu("🎨 Select Theme")
         for key, val in THEMES.items():
@@ -303,6 +340,10 @@ class DynamicIslandWindow(QWidget):
         # AI Companion Quick Trigger
         ai_action = menu.addAction("🤖 Open AI Companion")
         ai_action.triggered.connect(lambda: (self.expand(), self._switch_tab(2)))
+
+        # Screen vision quick trigger
+        vision_action = menu.addAction("👁️ Capture Screen & Ask AI")
+        vision_action.triggered.connect(lambda: (self.expand(), self._switch_tab(2), self.ai_service.analyze_screen()))
 
         menu.addSeparator()
         quit_action = menu.addAction("❌ Exit Dynamic Island")

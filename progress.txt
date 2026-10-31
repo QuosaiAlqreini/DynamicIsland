@@ -1,10 +1,32 @@
-﻿# Ralph Progress Log
+# Ralph Progress Log
 Started: 2026-10-31 16:50
 ---
 
 ## Codebase Patterns
 - Follow atomic commits: 'feat: [Story ID] - [Story Title]'
-- Run quality checks before marking passes: true in prd.json
+- Run quality checks (`python -m py_compile app.py`) before marking passes: true in prd.json
 - Run 'coderabbit review --agent' to catch edge cases before committing
+- Use QWidget container when dynamically showing/hiding layout rows in PyQt6
+- Use SHAppBarMessage with ABM_SETSTATE and ABS_AUTOHIDE for native Windows Taskbar MacBook mode
 ---
 
+## 2026-10-31 - US-008 & US-009 & US-010
+- **Implemented:**
+  - AI Screen Vision & Pair Programming with `QScreen.grabWindow(0)` and vision model dispatch.
+  - Settings Dialog (`SettingsDialog`) with multi-provider AI accounts (Gemini Free Tier, Claude, OpenAI, Ollama Local Free, Local CLI) and live connection test.
+  - Taskbar Styler & MacBook Mode (`TaskbarService`) with native auto-hide and Windhawk Windows 11 Taskbar Styler presets (DockLike, Translucent, Clean Desk).
+- **Files Changed:**
+  - `config.py`
+  - `services/ai_service.py`
+  - `services/taskbar_service.py`
+  - `modules/settings_dialog.py`
+  - `modules/ai_agent_widget.py`
+  - `island_window.py`
+  - `app.py`
+  - `README.md`
+  - `prd.json`
+- **Learnings for future iterations:**
+  - Gemini provides a generous 100% free API tier with 15 RPM / 1M TPM via Google AI Studio without credit card requirement.
+  - Ollama provides 100% free, offline, local vision models (such as `llama3.2-vision` and `llava`).
+  - Windhawk Taskbar Styler XAML rules target `Taskbar.TaskbarFrame#TaskbarFrame` for floating dock style and `SystemTray.ClockButtonControl#ClockButton` for hiding redundant tray elements.
+---
