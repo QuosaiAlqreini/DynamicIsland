@@ -122,7 +122,21 @@ Right-click the island or tray icon to instantly switch themes:
 
 ---
 
-## 🚀 Quick Start
+## ⬇️ Download & Install (no Python needed)
+
+1. Go to the **[latest release](https://github.com/QuosaiAlqreini/DynamicIsland/releases/latest)**.
+2. Download **`DynamicIsland-x.y.z-Setup.exe`** and run it.
+   * Installs for your user only (no admin needed), adds Start menu / desktop shortcuts, and can start the island when you sign in.
+   * Windows may say *"Windows protected your PC"* because the app isn't code-signed yet: click **More info → Run anyway**.
+3. Prefer no installer? Download **`DynamicIsland-x.y.z-portable.zip`**, unzip it anywhere and run `DynamicIsland.exe`.
+
+Uninstall from **Settings → Apps → Installed apps → Dynamic Island**. Your settings live in `%USERPROFILE%\.dynamic_island\config.json`.
+
+**Building it yourself:** run `powershell -ExecutionPolicy Bypass -File build.ps1` (needs Python 3.10+; install [Inno Setup 6](https://jrsoftware.org/isdl.php) to also get the Setup.exe). Every push is built and tested on Windows by GitHub Actions, and pushing a `v*` tag publishes a release.
+
+---
+
+## 🚀 Quick Start (from source)
 
 ### Prerequisites
 * Windows 10 or 11
@@ -229,6 +243,12 @@ DynamicIsland/
 │   ├── hotstring_engine.py    # Text expansion via low-level keyboard hook
 │   ├── win_input.py           # SendInput typing, window control, brightness, keep-awake, dark mode
 │   └── launcher.py            # Open apps/files/folders/URLs, reveal in Explorer
+├── version.py                 # App version (used by the build & installer)
+├── build.ps1                  # Builds DynamicIsland.exe, portable zip and Setup.exe
+├── packaging/                 # Inno Setup installer script + icon generator
+├── assets/                    # App icon
+├── tests/                     # pytest suite (runs on Windows in CI)
+├── .github/workflows/         # Windows build, test & release pipeline
 ├── requirements.txt           # Python dependencies
 ├── run.bat                    # Double-click Windows launcher
 └── prd.json                   # Ralph Loop specification & quality checks

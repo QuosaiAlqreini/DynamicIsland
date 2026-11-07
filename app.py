@@ -1,7 +1,9 @@
+import os
 import sys
 from PyQt6.QtWidgets import QApplication, QSystemTrayIcon, QMenu
 from PyQt6.QtGui import QIcon, QPixmap, QPainter, QColor
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtNetwork import QLocalServer, QLocalSocket
 
 from services.media_service import MediaService
 from services.system_service import SystemMonitorService
@@ -15,8 +17,32 @@ from services.automation_service import AutomationService
 from config import ConfigManager
 from island_window import DynamicIslandWindow, TAB_AI, TAB_SHELF
 from styles import THEMES
+from version import __version__, APP_NAME
+
+SINGLE_INSTANCE_KEY = "DynamicIsland-single-instance"
+
+
+def resource_path(*parts):
+    """Path to a bundled file, both from source and inside a PyInstaller build."""
+    base = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(base, *parts)
+
+
+def notify_running_instance():
+    """If Dynamic Island is already running, ask it to show itself. Returns True if so."""
+    sock = QLocalSocket()
+    sock.connectToServer(SINGLE_INSTANCE_KEY)
+    if sock.waitForConnected(300):
+        sock.write(b"show")
+        sock.waitForBytesWritten(300)
+        sock.disconnectFromServer()
+        return True
+    return False
 
 def create_tray_icon():
+    ico = resource_path("assets", "icon.ico")
+    if os.path.exists(ico):
+        return QIcon(ico)
     # Generate clean 32x32 vector pill icon
     pixmap = QPixmap(32, 32)
     pixmap.fill(Qt.GlobalColor.transparent)
@@ -37,9 +63,19 @@ def create_tray_icon():
     return QIcon(pixmap)
 
 def main():
+    selftest = "--selftest" in sys.argv
     app = QApplication(sys.argv)
     app.setApplicationName("Dynamic Island for Windows")
+    app.setApplicationVersion(__version__)
     app.setQuitOnLastWindowClosed(False)
+    app.setWindowIcon(create_tray_icon())
+
+    # Only one island at a time (e.g. autostart + double-clicking the shortcut)
+    if not selftest and notify_running_instance():
+        return 0
+    instance_server = QLocalServer(app)
+    QLocalServer.removeServer(SINGLE_INSTANCE_KEY)
+    instance_server.listen(SINGLE_INSTANCE_KEY)
 
     # Initialize Services
     media_service = MediaService(interval_ms=1000)
@@ -70,7 +106,7 @@ def main():
 
     # Initialize System Tray
     tray_icon = QSystemTrayIcon(create_tray_icon(), app)
-    tray_icon.setToolTip("Dynamic Island for Windows (Antigravity & Claude Code)")
+    tray_icon.setToolTip(f"{APP_NAME} {__version__}")
 
     tray_menu = QMenu()
     tray_menu.setStyleSheet("""
@@ -159,6 +195,20 @@ def main():
     media_service.start()
     sys_service.start()
     build_service.start()
+
+    def on_second_instance():
+        conn = instance_server.nextPendingConnection()
+        if conn is not None:
+            conn.readyRead.connect(lambda: (conn.readAll(), island.summon()))
+            conn.disconnected.connect(conn.deleteLater)
+    instance_server.newConnection.connect(on_second_instance)
+
+    if selftest:
+        # Used by CI: start everything, then exit cleanly after a few seconds
+        def finish():
+            print(f"SELFTEST OK {__version__}")
+            app.quit()
+        QTimer.singleShot(4000, finish)
 
     sys.exit(app.exec())
 

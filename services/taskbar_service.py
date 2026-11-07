@@ -74,8 +74,10 @@ class TaskbarService(QObject):
     def __init__(self):
         super().__init__()
         self.config = ConfigManager()
-        self._user32 = ctypes.windll.user32
-        self._shell32 = ctypes.windll.shell32
+        # windll only exists on Windows; methods below already fail soft
+        windll = getattr(ctypes, "windll", None)
+        self._user32 = windll.user32 if windll else None
+        self._shell32 = windll.shell32 if windll else None
 
     def is_autohide_enabled(self) -> bool:
         try:

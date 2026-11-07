@@ -352,6 +352,8 @@ def set_launch_at_login(enabled, command):
 
 def app_launch_command():
     """Command line that starts this app without a console window."""
+    if getattr(sys, "frozen", False):  # packaged .exe
+        return f'"{sys.executable}"'
     exe = sys.executable
     if exe.lower().endswith("python.exe"):
         pyw = exe[:-10] + "pythonw.exe"

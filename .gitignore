@@ -11,3 +11,7 @@ ENV/
 *.swp
 .DS_Store
 .dynamic_island/
+build/
+dist/
+*.spec.bak
+installer_output/

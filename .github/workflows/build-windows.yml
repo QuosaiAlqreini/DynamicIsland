@@ -1,0 +1,63 @@
+name: Build Windows app
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write   # needed to publish a GitHub Release on version tags
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pyinstaller pytest
+
+      - name: Run tests (real Windows APIs)
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python -m pytest -q tests
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) {
+            choco install innosetup -y --no-progress
+          }
+
+      - name: Build exe, self-test it, make zip + installer
+        shell: pwsh
+        run: ./build.ps1
+
+      - name: Upload build
+        uses: actions/upload-artifact@v4
+        with:
+          name: DynamicIsland-windows
+          path: installer_output/*
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: installer_output/*
+          generate_release_notes: true
+          body: |
+            ## Download
+            * **DynamicIsland-…-Setup.exe** — recommended. Installs for your user (no admin), adds Start menu / desktop shortcuts and optional start-with-Windows.
+            * **DynamicIsland-…-portable.zip** — no install: unzip anywhere and run `DynamicIsland.exe`.
+
+            Windows may show "Windows protected your PC" because the app isn't code-signed yet: click **More info → Run anyway**.
