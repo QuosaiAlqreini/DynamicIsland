@@ -1,7 +1,7 @@
 {
   "project": "DynamicIsland",
   "branchName": "main",
-  "description": "Dynamic Island for Windows with Native Media, System Monitor, AI Companion Hub with Screen Vision, Account Settings, and Taskbar MacBook Styler, plus notch productivity (Shelf, Clipboard, Notes, Focus, Build tracker, Quick Reach)",
+  "description": "Dynamic Island for Windows with Native Media, System Monitor, AI Companion Hub with Screen Vision, Account Settings, and Taskbar MacBook Styler, plus notch productivity (Shelf, Clipboard, Notes, Focus, Build tracker, Quick Reach), plus AutoHotkey-style automations",
   "qualityChecks": {
     "syntaxCheck": "python -m py_compile app.py",
     "smokeTest": "python -c \"import app\""
@@ -210,6 +210,49 @@
       "priority": 15,
       "passes": true,
       "notes": "services/hotkey_service.py (RegisterHotKey), island_window.py, modules/quick_tools_widget.py"
+    },
+    {
+      "id": "US-016",
+      "title": "AutoHotkey-style global hotkeys bound to actions",
+      "description": "Users record global hotkeys and bind them to app/file/URL launches, commands, typing, key sending, window management, laptop controls and island actions.",
+      "acceptanceCriteria": [
+        "Hotkey recorder; modifier-less F-keys/Pause/CapsLock allowed, letters require a modifier",
+        "~30 built-in actions across Apps, Typing, Windows, Laptop, Island",
+        "Typing actions wait until hotkey modifiers are released",
+        "Conflicting hotkeys reported in the editor and Keys tab",
+        "Starter set of useful hotkeys"
+      ],
+      "priority": 16,
+      "passes": true,
+      "notes": "services/automation_service.py, services/win_input.py, modules/automation_dialog.py"
+    },
+    {
+      "id": "US-017",
+      "title": "Hotstrings (text expansion)",
+      "description": "Typed triggers expand into text in any app, with AHK-style instant option and date/time/clipboard tokens.",
+      "acceptanceCriteria": [
+        "Low-level keyboard hook on its own thread; injected keys ignored",
+        "Trigger must be a whole word; end key or instant",
+        "Only the current word held in memory",
+        "Global on/off toggle"
+      ],
+      "priority": 17,
+      "passes": true,
+      "notes": "services/hotstring_engine.py; HotstringMatcher unit-tested"
+    },
+    {
+      "id": "US-018",
+      "title": "AutoHotkey script import, Keys tab, keep-awake and launch at login",
+      "description": "Convert simple .ahk scripts, run automations from the island, keep the laptop awake, start with Windows.",
+      "acceptanceCriteria": [
+        "Converts Run/Send/remap/AlwaysOnTop/Win* hotkeys and one-line hotstrings (v1 and v2); skips blocks and lists them",
+        "Keys tab with one-click buttons, hotstrings and awake toggles",
+        "Keep-awake live activity in pill",
+        "HKCU Run entry toggle in Preferences"
+      ],
+      "priority": 18,
+      "passes": true,
+      "notes": "modules/keys_widget.py; parse_ahk tested against a mixed v1/v2 sample"
     }
   ]
 }

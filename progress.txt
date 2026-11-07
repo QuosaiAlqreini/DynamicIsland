@@ -44,3 +44,17 @@ Started: 2026-10-31 16:50
   - Build detection: normalize argv tokens (basename, strip .exe/.cmd/.js, '-cli') and keep only the outermost matching process so cmd -> npm -> node counts once.
   - TaskbarService needs ctypes.windll, so stub it when smoke-testing on non-Windows (QT_QPA_PLATFORM=offscreen).
 ---
+
+## 2026-11-07 - US-016 to US-018 (AutoHotkey-style automations)
+- **Implemented:**
+  - Global hotkeys -> actions (apps, commands, typing, key sending, window management, laptop controls, island actions).
+  - Hotstrings via WH_KEYBOARD_LL hook thread; matcher split out as pure logic for testing.
+  - .ahk importer (v1/v2 simple hotkeys and one-line hotstrings), Keys tab, keep-awake, dark mode toggle, brightness, launch at login.
+- **Files Changed:** config.py, styles.py, app.py, island_window.py, modules/{keys_widget,automation_dialog,settings_dialog}.py, services/{automation_service,hotstring_engine,win_input,hotkey_service,clipboard_service}.py, README.md, prd.json
+- **Learnings for future iterations:**
+  - In the LL hook, swallow the final trigger/end key (return 1) and retype it, instead of racing the app for the keystroke.
+  - Always set argtypes/restype for CallNextHookEx/SetWindowsHookExW on 64-bit Python or LPARAM gets truncated.
+  - Ignore events with LLKHF_INJECTED so our own SendInput output doesn't re-trigger hotstrings.
+  - Wait for Ctrl/Alt/Win to be released before SendInput from a hotkey, otherwise typed text becomes shortcuts.
+  - Escape '&' as '&&' in QPushButton text (Qt mnemonic).
+---

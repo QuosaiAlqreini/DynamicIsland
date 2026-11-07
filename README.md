@@ -36,16 +36,46 @@ Make the island the one place you reach for, instead of hunting through windows.
 ### 3. ⚡ Quick Reach (less fuss)
 * **Global hotkey `Ctrl+Alt+Space`:** Opens or closes the island from any app (configurable in Preferences).
 * **Click to open:** Click the pill instead of hovering and waiting. **Middle-click** plays or pauses media. **Left-click the tray icon** to open the island.
-* **Keyboard:** `Ctrl+1..7` jumps to a tab, `Ctrl+Tab` cycles tabs, `Esc` closes. Clicking anywhere else also closes it.
+* **Keyboard:** `Ctrl+1..8` jumps to a tab, `Ctrl+Tab` cycles tabs, `Esc` closes. Clicking anywhere else also closes it.
 * **Stays open while you work:** It doesn't collapse while you're typing a note or dragging a file out.
 * **Remembers your last tab.**
 
-### 4. 👀 AI Screen Vision & Multimodal Pair Programming (NEW!)
+### 4. ⌨️ Automations — built-in AutoHotkey (NEW!)
+A system-wide hotkey and text-expansion engine, so Dynamic Island can replace a pile of separate utilities. Open it from the **⌨️ Keys** tab → `✏️ Edit`, right-click ➔ `⌨️ Automations & Hotkeys…`, or the tray.
+* **Custom global hotkeys → actions.** Record any shortcut (F-keys, Pause, `CapsLock` etc. can be used alone) and bind it to:
+  * **Apps & files:** open an app/file/folder/URL, run a command, run hidden PowerShell, or run a real `.ahk` script.
+  * **Typing:** type text, paste long text, or send key combos (`Ctrl+Shift+T, Enter`). Tokens: `{date}` `{time}` `{datetime}` `{clipboard}`.
+  * **Windows:** toggle always-on-top, center, snap left/right, maximize/restore, minimize, close.
+  * **Laptop:** volume, mute, media keys, screen brightness up/down, ☕ keep awake, dark/light mode, screenshot, show desktop, lock, sleep.
+  * **Island:** open/close, jump to a tab, quick note, start a focus timer, AI look at my screen.
+* **Hotstrings (text expansion):** type `;date` + Space and it becomes today's date in any app. Supports instant triggers (AHK's `*` option). Only the current word is ever held in memory.
+* **Import AutoHotkey scripts:** paste or open a `.ahk` file (v1 or v2). Simple hotkeys (`Run`, `Send`, remaps like `CapsLock::Esc`, `AlwaysOnTop`, `WinMinimize`...) and one-line hotstrings are converted; anything more complex is listed so you can run it with the "Run AutoHotkey script" action.
+* **One-click panel:** the **⌨️ Keys** tab shows every automation as a button, plus toggles for hotstrings and keep-awake.
+* **Start with Windows:** Preferences ➔ `🚀 Start Dynamic Island when I sign in`.
+
+**Starter hotkeys** (change or delete them any time):
+
+| Hotkey | Action |
+|---|---|
+| `Ctrl+Alt+Space` | Open / close the island |
+| `Ctrl+Alt+T` | Windows Terminal |
+| `Ctrl+Alt+N` | Quick note |
+| `Ctrl+Alt+V` | Shelf & clipboard history |
+| `Ctrl+Alt+P` | Pin current window on top |
+| `Ctrl+Alt+C` | Center current window |
+| `Ctrl+Alt+K` | Keep awake on/off |
+| `Ctrl+Alt+F` | 25-minute focus timer |
+| `Ctrl+Alt+PgUp / PgDown` | Screen brightness |
+| `Ctrl+Alt+D` | Dark / light mode |
+
+Starter hotstrings: `;date`, `;time`, `;now`, `;shrug`, `;ty`.
+
+### 5. 👀 AI Screen Vision & Multimodal Pair Programming (NEW!)
 * **Live Screen Inspection:** Click **`👁️ See Screen`** in the AI Companion tab to capture your screen in real time.
 * **Multimodal Analysis:** The AI can see your IDE code, terminal compiler errors, browser layouts, or design mockups and provide immediate assistance.
 * **Auto-Attach Screen Context:** Option in Settings to automatically attach a desktop screenshot to your prompt questions.
 
-### 5. 🤖 Multi-Provider AI Accounts & Free Tier Connections (NEW!)
+### 6. 🤖 Multi-Provider AI Accounts & Free Tier Connections (NEW!)
 Open the Preferences dialog (Right-click ➔ `⚙️ Preferences & AI Accounts` or click `⚙️` in the AI tab) to connect your preferred provider:
 * **Google Gemini (Recommended Free Tier):** Generous 100% free API tier (15 RPM / 1M TPM) available via Google AI Studio without credit card.
 * **Anthropic Claude:** Industry-leading Claude 3.5 Sonnet Vision for state-of-the-art coding assistance.
@@ -54,7 +84,7 @@ Open the Preferences dialog (Right-click ➔ `⚙️ Preferences & AI Accounts` 
 * **Claude Code / Antigravity CLI Local Bridge:** Connects to your active local developer CLI sessions.
 * **Connection Tester:** Real-time ping button verifying API keys, models, and network latency.
 
-### 6. 🍏 Taskbar Customizer & MacBook Vibe (Windhawk Styler Integration) (NEW!)
+### 7. 🍏 Taskbar Customizer & MacBook Vibe (Windhawk Styler Integration) (NEW!)
 Because Dynamic Island already provides the clock, battery percentage, volume, and media player at the top of your screen, these options become redundant on the Windows taskbar!
 * **MacBook Clean Desktop Vibe (Auto-Hide Taskbar):** One-click toggle that automatically tucks away the Windows taskbar, leaving only the Dynamic Island at the top. The taskbar only slides in when your cursor touches the bottom edge.
 * **Windhawk Windows 11 Taskbar Styler Presets:** Direct XAML profiles ready to copy with one click:
@@ -62,27 +92,27 @@ Because Dynamic Island already provides the clock, battery percentage, volume, a
   * **Translucent Acrylic Glass:** Transforms the taskbar into transparent frosted glass.
   * **Clean Desk (Hide Redundant Clock & Tray):** Hides the duplicate taskbar clock, date, and tray icons.
 
-### 7. 🎵 Native Windows Media Transport Controls
+### 8. 🎵 Native Windows Media Transport Controls
 * Integrates directly with Windows System Media Transport Controls (`winsdk`) to detect music playing from **Spotify**, **Chrome**, **Edge**, **Apple Music**, or **Windows Media Player**.
 * **Controls:** One-tap Play/Pause, Next Track, Previous Track.
 * **Audio Visualizer:** Dynamic multi-bar animated waveform reacting during playback.
 * **Progress Bar:** Real-time track timeline tracking.
 
-### 8. ⚡ Real-Time Hardware Performance Telemetry
+### 9. ⚡ Real-Time Hardware Performance Telemetry
 * Circular animated SVG/Canvas gauges for:
   * **CPU Load %**
   * **RAM Usage %** (with live used / total GB)
   * **Battery %** (with charging status & power source indicator)
 * System uptime monitor.
 
-### 9. 🛠️ Quick Utilities & Shortcuts
+### 10. 🛠️ Quick Utilities & Shortcuts
 * Master **Volume Slider** with live percentage and instant mute toggle.
 * One-click **Windows Snipping Tool** (`ms-screenclip:`).
 * One-click **PowerShell Terminal** launcher.
 * One-click **Task Manager** launcher.
 * **Focus / Do Not Disturb Mode** toggle.
 
-### 10. 🎨 5 Curated Themes
+### 11. 🎨 5 Curated Themes
 Right-click the island or tray icon to instantly switch themes:
 1. **Obsidian Dark (Default):** Deep OLED black with neon cyan and violet accents.
 2. **Cyberpunk Neon:** Midnight purple with electric hot pink and cyan glow.
@@ -150,7 +180,8 @@ To achieve the clean macOS look without duplicated taskbar icons:
 | **Reuse a copied snippet** | `📥 Shelf` tab → click a clipboard entry (📌 to pin) |
 | **Quick note** | `📝 Notes` tab, or right-click / tray ➔ `📝 Quick Note` |
 | **Focus timer** | `⏱️ Focus` tab, or right-click ➔ `⏱️ Start Focus Timer` |
-| **Jump to a tab** | `Ctrl+1..7`, `Ctrl+Tab` to cycle, `Esc` to close |
+| **Jump to a tab** | `Ctrl+1..8`, `Ctrl+Tab` to cycle, `Esc` to close |
+| **Edit automations** | `⌨️ Keys` tab ➔ `✏️ Edit`, or right-click ➔ `⌨️ Automations & Hotkeys…` |
 | **Play / Pause** | Middle-click the island |
 | **Collapse Dashboard** | Move your cursor away, click elsewhere, or press `Esc` |
 | **Move / Reposition** | Left-click and drag the pill across the top edge |
@@ -158,7 +189,7 @@ To achieve the clean macOS look without duplicated taskbar icons:
 | **AI Screen Vision** | Open `🤖 AI Companion` tab and click `👁️ See Screen` |
 | **Open Preferences** | Click `⚙️` in AI tab or right-click pill ➔ `⚙️ Preferences & AI Accounts` |
 | **Toggle MacBook Mode** | Right-click pill ➔ `🍏 MacBook Mode (Auto-Hide Taskbar)` |
-| **Switch Tabs** | Click `🎵 Media`, `📥 Shelf`, `📝 Notes`, `⏱️ Focus`, `🤖 AI`, `⚡ Sys`, or `🛠️ Tools` |
+| **Switch Tabs** | Click `🎵 Media`, `📥 Shelf`, `📝 Notes`, `⏱️ Focus`, `⌨️ Keys`, `🤖 AI`, `⚡ Sys`, or `🛠️ Tools` |
 | **Change Theme** | Right-click ➔ `Select Theme` (Obsidian, Cyberpunk, Nord, Glassmorphic, Porcelain) |
 | **Toggle Notch Mode** | Right-click ➔ `Toggle Notch Mode (Top Flush)` |
 | **Exit** | Right-click ➔ `Exit Dynamic Island` |
@@ -182,6 +213,8 @@ DynamicIsland/
 │   ├── shelf_widget.py        # File drop shelf (drag in / drag out) + clipboard history
 │   ├── notes_widget.py        # Autosaving quick notes scratchpad
 │   ├── focus_widget.py        # Focus timer + build/task tracker
+│   ├── keys_widget.py         # One-click automations panel + hotstring / keep-awake toggles
+│   ├── automation_dialog.py   # Hotkey recorder, action editor, hotstrings table, .ahk importer
 │   └── settings_dialog.py     # Preferences Dialog (AI accounts, free tiers, screen vision, taskbar styler)
 ├── services/
 │   ├── media_service.py       # Winsdk Windows Media Session integration + demo fallback
@@ -191,7 +224,10 @@ DynamicIsland/
 │   ├── clipboard_service.py   # Clipboard history (memory only, pinned items persisted)
 │   ├── focus_timer_service.py # Focus / Pomodoro countdown
 │   ├── build_watch_service.py # Detects long builds/tests via psutil (background thread)
-│   ├── hotkey_service.py      # Global hotkey via Win32 RegisterHotKey
+│   ├── hotkey_service.py      # Global hotkeys via Win32 RegisterHotKey
+│   ├── automation_service.py  # Action engine, macro registration, AutoHotkey script converter
+│   ├── hotstring_engine.py    # Text expansion via low-level keyboard hook
+│   ├── win_input.py           # SendInput typing, window control, brightness, keep-awake, dark mode
 │   └── launcher.py            # Open apps/files/folders/URLs, reveal in Explorer
 ├── requirements.txt           # Python dependencies
 ├── run.bat                    # Double-click Windows launcher

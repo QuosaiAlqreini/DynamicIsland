@@ -171,3 +171,80 @@ def input_style(theme):
         font-size: 11px;
         padding: 4px 6px;
     """
+
+
+def dialog_style(theme):
+    """Shared look for preference-style dialogs (tabs, inputs, tables)."""
+    return f"""
+        QDialog {{
+            background-color: {theme['bg_color']};
+            color: {theme['text_primary']};
+            font-family: 'Segoe UI', sans-serif;
+        }}
+        QTabWidget::pane {{
+            border: 1px solid {theme['border_color']};
+            background: {theme['bg_secondary']};
+            border-radius: 8px;
+        }}
+        QTabBar::tab {{
+            background: {theme['bg_color']};
+            color: {theme['text_secondary']};
+            padding: 8px 16px;
+            border-top-left-radius: 6px;
+            border-top-right-radius: 6px;
+            font-weight: 600;
+            font-size: 11px;
+        }}
+        QTabBar::tab:selected {{
+            background: {theme['bg_secondary']};
+            color: {theme['accent']};
+            border: 1px solid {theme['border_color']};
+            border-bottom: none;
+        }}
+        QLabel {{ color: {theme['text_primary']}; font-size: 11px; }}
+        QLineEdit, QComboBox, QPlainTextEdit {{
+            background: {theme['card_bg']};
+            color: {theme['text_primary']};
+            border: 1px solid {theme['border_color']};
+            border-radius: 6px;
+            padding: 5px 8px;
+            font-size: 11px;
+        }}
+        QLineEdit:focus, QComboBox:focus, QPlainTextEdit:focus {{ border-color: {theme['accent']}; }}
+        QComboBox QAbstractItemView {{
+            background: {theme['card_bg']};
+            color: {theme['text_primary']};
+            selection-background-color: {_rgba(theme['accent'], 0.25)};
+        }}
+        QPushButton {{
+            background: {theme['card_bg']};
+            color: {theme['text_primary']};
+            border: 1px solid {theme['border_color']};
+            border-radius: 6px;
+            padding: 6px 12px;
+            font-size: 11px;
+            font-weight: 600;
+        }}
+        QPushButton:hover {{ border-color: {theme['accent']}; color: {theme['accent']}; }}
+        QPushButton:checked {{ background: {theme['accent']}; color: {theme['bg_color']}; }}
+        QCheckBox {{ color: {theme['text_primary']}; font-size: 11px; }}
+        QTableWidget {{
+            background: {theme['card_bg']};
+            color: {theme['text_primary']};
+            gridline-color: {theme['border_color']};
+            border: 1px solid {theme['border_color']};
+            border-radius: 6px;
+            font-size: 11px;
+            selection-background-color: {_rgba(theme['accent'], 0.25)};
+            selection-color: {theme['text_primary']};
+        }}
+        QHeaderView::section {{
+            background: {theme['bg_color']};
+            color: {theme['text_secondary']};
+            border: none;
+            border-bottom: 1px solid {theme['border_color']};
+            padding: 4px;
+            font-size: 10px;
+            font-weight: 700;
+        }}
+    """

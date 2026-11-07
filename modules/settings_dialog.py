@@ -324,6 +324,9 @@ class SettingsDialog(QDialog):
         self.chk_builds = QCheckBox("🔨 Track builds, installs & test runs as live activities")
         layout.addWidget(self.chk_builds)
 
+        self.chk_login = QCheckBox("🚀 Start Dynamic Island when I sign in to Windows")
+        layout.addWidget(self.chk_login)
+
         hk_row = QHBoxLayout()
         hk_row.addWidget(QLabel("Global hotkey (restart to apply):"))
         self.edit_hotkey = QLineEdit()
@@ -361,6 +364,7 @@ class SettingsDialog(QDialog):
         self.chk_clip.setChecked(self.config.get("clipboard_history_enabled", True))
         self.chk_builds.setChecked(self.config.get("build_watch_enabled", True))
         self.edit_hotkey.setText(self.config.get("global_hotkey", "Ctrl+Alt+Space"))
+        self.chk_login.setChecked(self.config.get("launch_at_login", False))
 
         # Connect AI service signal
         self.ai_service.connection_tested.connect(self._on_connection_tested)
@@ -461,5 +465,12 @@ class SettingsDialog(QDialog):
         self.config.set("clipboard_history_enabled", self.chk_clip.isChecked())
         self.config.set("build_watch_enabled", self.chk_builds.isChecked())
         self.config.set("global_hotkey", self.edit_hotkey.text().strip() or "Ctrl+Alt+Space")
+        if self.chk_login.isChecked() != self.config.get("launch_at_login", False):
+            from services.win_input import set_launch_at_login, app_launch_command
+            try:
+                set_launch_at_login(self.chk_login.isChecked(), app_launch_command())
+                self.config.set("launch_at_login", self.chk_login.isChecked())
+            except OSError as e:
+                QMessageBox.warning(self, "Startup", f"Could not change startup setting: {e}")
 
         self.accept()

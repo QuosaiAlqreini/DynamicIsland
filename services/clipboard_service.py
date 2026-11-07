@@ -3,6 +3,8 @@
 History is kept in memory only; only items the user explicitly pins are
 persisted to the config file, so copied secrets never land on disk.
 """
+import time
+
 from PyQt6.QtCore import QObject, pyqtSignal
 from PyQt6.QtWidgets import QApplication
 
@@ -18,6 +20,7 @@ class ClipboardService(QObject):
         super().__init__(parent)
         self.config = ConfigManager()
         self.history = []  # newest first, unpinned items only
+        self._paused_until = 0.0
         self.pinned = [str(p) for p in self.config.get("clipboard_pinned", []) if p]
         self.clipboard = QApplication.clipboard()
         self.clipboard.dataChanged.connect(self._on_clipboard_changed)
@@ -26,8 +29,12 @@ class ClipboardService(QObject):
     def enabled(self):
         return bool(self.config.get("clipboard_history_enabled", True))
 
+    def pause(self, ms):
+        """Ignore clipboard changes for a while (automation pastes)."""
+        self._paused_until = time.monotonic() + ms / 1000
+
     def _on_clipboard_changed(self):
-        if not self.enabled:
+        if not self.enabled or time.monotonic() < self._paused_until:
             return
         mime = self.clipboard.mimeData()
         if mime is None or not mime.hasText():

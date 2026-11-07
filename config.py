@@ -55,6 +55,30 @@ DEFAULT_CONFIG = {
         "pytest", "pip install", "docker build", "docker compose build",
         "make", "cmake --build", "ninja", "flutter build"
     ],
+    # --- AutoHotkey-style automation ---
+    "launch_at_login": False,
+    "hotstrings_enabled": True,
+    "automations": [
+        {"name": "Terminal", "hotkey": "Ctrl+Alt+T", "action": "run", "arg": "wt", "enabled": True},
+        {"name": "Quick note", "hotkey": "Ctrl+Alt+N", "action": "quick_note", "arg": "", "enabled": True},
+        {"name": "Shelf & clipboard", "hotkey": "Ctrl+Alt+V", "action": "island_tab", "arg": "shelf", "enabled": True},
+        {"name": "Pin window on top", "hotkey": "Ctrl+Alt+P", "action": "win_top", "arg": "", "enabled": True},
+        {"name": "Center window", "hotkey": "Ctrl+Alt+C", "action": "win_center", "arg": "", "enabled": True},
+        {"name": "Keep awake", "hotkey": "Ctrl+Alt+K", "action": "keep_awake", "arg": "", "enabled": True},
+        {"name": "Focus 25 min", "hotkey": "Ctrl+Alt+F", "action": "focus", "arg": "25", "enabled": True},
+        {"name": "Brightness up", "hotkey": "Ctrl+Alt+PgUp", "action": "bright_up", "arg": "10", "enabled": True},
+        {"name": "Brightness down", "hotkey": "Ctrl+Alt+PgDown", "action": "bright_down", "arg": "10", "enabled": True},
+        {"name": "Dark mode", "hotkey": "Ctrl+Alt+D", "action": "dark_mode", "arg": "", "enabled": True},
+        {"name": "Screenshot", "hotkey": "", "action": "screenshot", "arg": "", "enabled": True},
+        {"name": "Lock", "hotkey": "", "action": "lock", "arg": "", "enabled": True}
+    ],
+    "hotstrings": [
+        {"trigger": ";date", "replacement": "{date}", "instant": False, "enabled": True},
+        {"trigger": ";time", "replacement": "{time}", "instant": False, "enabled": True},
+        {"trigger": ";now", "replacement": "{datetime}", "instant": False, "enabled": True},
+        {"trigger": ";shrug", "replacement": "¯\\_(ツ)_/¯", "instant": False, "enabled": True},
+        {"trigger": ";ty", "replacement": "Thank you!", "instant": False, "enabled": True}
+    ],
     "pinned_launchers": [
         {"name": "Explorer", "target": "explorer.exe"},
         {"name": "Downloads", "target": "~/Downloads"},

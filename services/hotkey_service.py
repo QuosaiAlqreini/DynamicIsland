@@ -12,28 +12,38 @@ MOD_ALT, MOD_CONTROL, MOD_SHIFT, MOD_WIN, MOD_NOREPEAT = 0x1, 0x2, 0x4, 0x8, 0x4
 
 _MODS = {"ctrl": MOD_CONTROL, "control": MOD_CONTROL, "alt": MOD_ALT,
          "shift": MOD_SHIFT, "win": MOD_WIN, "meta": MOD_WIN}
-_KEYS = {"space": 0x20, "enter": 0x0D, "tab": 0x09, "esc": 0x1B, "`": 0xC0,
-         "backquote": 0xC0, "home": 0x24, "end": 0x23, "insert": 0x2D}
 
 
 def parse_hotkey(text):
-    """'Ctrl+Alt+Space' -> (modifiers, virtual_key) or None if invalid."""
-    mods, vk = 0, None
-    for raw in (text or "").split("+"):
+    """'Ctrl+Alt+Space' -> (modifiers, virtual_key) or None if invalid.
+
+    Letters/digits/space need at least one modifier; F-keys, Pause,
+    Insert, media keys etc. may be used on their own (AutoHotkey-style).
+    """
+    from services.win_input import key_to_vk
+    mods, vk, key_name = 0, None, ""
+    parts = [p for p in (text or "").split("+")]
+    # Allow '+' itself as a key ("Ctrl++")
+    if text and text.endswith("++"):
+        parts = parts[:-2] + ["="]
+    for raw in parts:
         part = raw.strip().lower()
         if not part:
             continue
         if part in _MODS:
             mods |= _MODS[part]
-        elif part in _KEYS:
-            vk = _KEYS[part]
-        elif len(part) == 1 and part.isalnum():
-            vk = ord(part.upper())
-        elif part.startswith("f") and part[1:].isdigit() and 1 <= int(part[1:]) <= 24:
-            vk = 0x70 + int(part[1:]) - 1
+        elif vk is None:
+            vk = key_to_vk(raw)
+            key_name = part
+            if vk is None:
+                return None
         else:
             return None
-    if vk is None or mods == 0:
+    if vk is None:
+        return None
+    typing_key = len(key_name) == 1 or key_name in ("space", "enter", "return", "tab",
+                                                     "backspace", "esc", "escape")
+    if mods == 0 and typing_key:
         return None
     return mods, vk
 
@@ -66,6 +76,7 @@ class HotkeyService(QObject):
         self._registered = []
         self._filter = None
         self.available = sys.platform == "win32"
+        self.last_error = ""
 
     def register(self, hotkey_id, text):
         """Register a global hotkey. Returns True on success."""
@@ -74,6 +85,7 @@ class HotkeyService(QObject):
         parsed = parse_hotkey(text)
         if not parsed:
             print(f"[hotkey] Invalid hotkey: {text!r}")
+            self.last_error = f"'{text}' is not a valid hotkey"
             return False
         try:
             import ctypes
@@ -86,10 +98,21 @@ class HotkeyService(QObject):
                 self._registered.append(hotkey_id)
             else:
                 print(f"[hotkey] {text} is already used by another app")
+                self.last_error = f"{text} is already used by Windows or another app"
             return bool(ok)
         except Exception as e:
             print(f"[hotkey] Registration failed: {e}")
             return False
+
+    def unregister(self, hotkey_id):
+        if not self.available or hotkey_id not in self._registered:
+            return
+        try:
+            import ctypes
+            ctypes.windll.user32.UnregisterHotKey(None, hotkey_id)
+        except Exception:
+            pass
+        self._registered.remove(hotkey_id)
 
     def unregister_all(self):
         if not self.available:

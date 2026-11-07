@@ -11,6 +11,7 @@ from services.clipboard_service import ClipboardService
 from services.focus_timer_service import FocusTimerService
 from services.build_watch_service import BuildWatchService
 from services.hotkey_service import HotkeyService
+from services.automation_service import AutomationService
 from config import ConfigManager
 from island_window import DynamicIslandWindow, TAB_AI, TAB_SHELF
 from styles import THEMES
@@ -48,18 +49,23 @@ def main():
     clipboard_service = ClipboardService()
     timer_service = FocusTimerService()
     build_service = BuildWatchService(interval_ms=2000)
+    hotkey_service = HotkeyService(app)
+    automation_service = AutomationService(hotkey_service, clipboard_service=clipboard_service)
 
     # Initialize Main Island Window
     island = DynamicIslandWindow(media_service, sys_service, ai_service, taskbar_service,
-                                 clipboard_service, timer_service, build_service)
+                                 clipboard_service, timer_service, build_service, automation_service)
     island.show()
 
     # Global hotkey: summon the island from anywhere (default Ctrl+Alt+Space)
     config = ConfigManager()
-    hotkey_service = HotkeyService(app)
     hotkey_text = config.get("global_hotkey", "Ctrl+Alt+Space")
     if hotkey_text and hotkey_service.register(1, hotkey_text):
-        hotkey_service.activated.connect(lambda _id: island.summon())
+        hotkey_service.activated.connect(lambda hid: island.summon() if hid == 1 else None)
+
+    # AutoHotkey-style automations: user hotkeys + hotstrings
+    automation_service.apply()
+    app.aboutToQuit.connect(automation_service.shutdown)
     app.aboutToQuit.connect(hotkey_service.unregister_all)
 
     # Initialize System Tray
@@ -126,6 +132,7 @@ def main():
 
     tray_menu.addAction("📥 Open Shelf").triggered.connect(lambda: island.open_tab(TAB_SHELF))
     tray_menu.addAction("📝 Quick Note").triggered.connect(island.quick_note)
+    tray_menu.addAction("⌨️ Automations & Hotkeys…").triggered.connect(island.open_automations)
 
     # Themes submenu
     theme_menu = tray_menu.addMenu("🎨 Themes")

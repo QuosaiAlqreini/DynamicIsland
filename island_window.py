@@ -24,9 +24,15 @@ from modules.focus_widget import FocusWidget
 from services.clipboard_service import ClipboardService
 from services.focus_timer_service import FocusTimerService, format_seconds
 from services.build_watch_service import BuildWatchService
+from services.automation_service import AutomationService
+from modules.keys_widget import KeysWidget
+from modules.automation_dialog import AutomationDialog
 
 # Tab indices (kept stable so existing shortcuts keep working)
-TAB_MEDIA, TAB_SYSTEM, TAB_AI, TAB_TOOLS, TAB_SHELF, TAB_NOTES, TAB_FOCUS = range(7)
+TAB_MEDIA, TAB_SYSTEM, TAB_AI, TAB_TOOLS, TAB_SHELF, TAB_NOTES, TAB_FOCUS, TAB_KEYS = range(8)
+TAB_NAMES = {"media": TAB_MEDIA, "system": TAB_SYSTEM, "sys": TAB_SYSTEM, "ai": TAB_AI,
+             "tools": TAB_TOOLS, "shelf": TAB_SHELF, "clipboard": TAB_SHELF, "notes": TAB_NOTES,
+             "focus": TAB_FOCUS, "timer": TAB_FOCUS, "keys": TAB_KEYS, "automations": TAB_KEYS}
 CLICK_MOVE_THRESHOLD = 4
 
 class DynamicIslandWindow(QWidget):
@@ -34,7 +40,8 @@ class DynamicIslandWindow(QWidget):
     notify = pyqtSignal(str, str)
 
     def __init__(self, media_service, sys_service, ai_service, taskbar_service,
-                 clipboard_service=None, timer_service=None, build_service=None):
+                 clipboard_service=None, timer_service=None, build_service=None,
+                 automation_service=None):
         super().__init__()
         self.config = ConfigManager()
         self.theme_name = self.config.get("theme", "obsidian")
@@ -47,6 +54,9 @@ class DynamicIslandWindow(QWidget):
         self.clipboard_service = clipboard_service or ClipboardService(self)
         self.timer_service = timer_service or FocusTimerService(self)
         self.build_service = build_service or BuildWatchService(parent=self)
+        self.automation_service = automation_service or AutomationService(
+            None, clipboard_service=self.clipboard_service, parent=self)
+        self.automation_service.island_actions.update(self.island_actions())
 
         # State tracking
         self.is_expanded = False
@@ -122,6 +132,7 @@ class DynamicIslandWindow(QWidget):
         self.shelf_widget = ShelfWidget(self.theme, self.clipboard_service, self)
         self.notes_widget = NotesWidget(self.theme, self.clipboard_service, self)
         self.focus_widget = FocusWidget(self.theme, self.timer_service, self.build_service, self)
+        self.keys_widget = KeysWidget(self.theme, self.automation_service, self)
 
         self.stack.addWidget(self.media_widget) # Index 0
         self.stack.addWidget(self.sys_widget)   # Index 1
@@ -130,6 +141,7 @@ class DynamicIslandWindow(QWidget):
         self.stack.addWidget(self.shelf_widget) # Index 4
         self.stack.addWidget(self.notes_widget) # Index 5
         self.stack.addWidget(self.focus_widget) # Index 6
+        self.stack.addWidget(self.keys_widget)  # Index 7
 
         self.exp_layout.addWidget(self.stack)
 
@@ -145,6 +157,7 @@ class DynamicIslandWindow(QWidget):
             ("📥 Shelf", TAB_SHELF, "Dropped files + clipboard history"),
             ("📝 Notes", TAB_NOTES, "Quick scratchpad"),
             ("⏱️ Focus", TAB_FOCUS, "Focus timer + build tracker"),
+            ("⌨️ Keys", TAB_KEYS, "Automations: hotkeys, hotstrings, laptop toggles"),
             ("🤖 AI", TAB_AI, "AI Companion"),
             ("⚡ Sys", TAB_SYSTEM, "System telemetry"),
             ("🛠️ Tools", TAB_TOOLS, "Launchers & utilities"),
@@ -173,7 +186,7 @@ class DynamicIslandWindow(QWidget):
                 color: {self.theme['text_secondary']};
                 border: 1px solid {self.theme['border_color']};
                 border-radius: 11px;
-                padding: 3px 8px;
+                padding: 3px 6px;
                 font-size: 10px;
                 font-weight: 600;
             }}
@@ -196,6 +209,21 @@ class DynamicIslandWindow(QWidget):
             btn.setChecked(i == index)
         if save and self.config.get("remember_last_tab", True):
             self.config.set("last_tab", index)
+
+    def island_actions(self):
+        """Callbacks the automation engine can trigger."""
+        return {
+            "island_toggle": self.summon,
+            "quick_note": self.quick_note,
+            "see_screen": lambda: (self.open_tab(TAB_AI), self.ai_service.analyze_screen()),
+            "open_tab": lambda name: self.open_tab(TAB_NAMES.get(name.strip().lower(), TAB_MEDIA)),
+            "focus": lambda minutes: self.timer_service.start(minutes, "Focus"),
+            "collapse": self.collapse,
+        }
+
+    def open_automations(self):
+        dlg = AutomationDialog(self.theme, self.automation_service, self)
+        dlg.exec()
 
     def open_tab(self, index):
         """Show the island expanded on a given tab (used by menus, tray, hotkey)."""
@@ -275,6 +303,14 @@ class DynamicIslandWindow(QWidget):
         self.build_service.jobs_changed.connect(self._on_build_jobs)
         self.build_service.job_finished.connect(self._on_build_finished)
         self.tools_widget.open_tab_requested.connect(self._switch_tab)
+
+        # Automations
+        self.keys_widget.edit_requested.connect(self.open_automations)
+        self.automation_service.feedback.connect(
+            lambda msg: self.idle_pill.flash(msg, self.theme["accent"], 2000))
+        self.automation_service.keep_awake_changed.connect(
+            lambda on: self.idle_pill.set_activity("awake", "☕ Awake", None, self.theme["warning"], priority=1)
+            if on else self.idle_pill.clear_activity("awake"))
 
     # ------------------------------------------------------ Live activities
     def _on_pill_activity(self, active):
@@ -557,6 +593,12 @@ class DynamicIslandWindow(QWidget):
         if self.timer_service.active:
             focus_menu.addAction("⏹ Stop timer").triggered.connect(self.timer_service.stop)
 
+        menu.addAction("⌨️ Automations & Hotkeys…").triggered.connect(self.open_automations)
+        awake = menu.addAction("☕ Keep Awake")
+        awake.setCheckable(True)
+        awake.setChecked(self.automation_service.keep_awake)
+        awake.triggered.connect(lambda on: self.automation_service.set_keep_awake(on))
+
         # AI Companion Quick Trigger
         ai_action = menu.addAction("🤖 Open AI Companion")
         ai_action.triggered.connect(lambda: self.open_tab(TAB_AI))
@@ -593,6 +635,7 @@ class DynamicIslandWindow(QWidget):
         self.shelf_widget.update_theme(self.theme)
         self.notes_widget.update_theme(self.theme)
         self.focus_widget.update_theme(self.theme)
+        self.keys_widget.update_theme(self.theme)
         self._style_nav()
         self.update()
 
