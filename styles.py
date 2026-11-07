@@ -88,3 +88,86 @@ THEMES = {
 
 def get_theme(theme_name="obsidian"):
     return THEMES.get(theme_name, THEMES["obsidian"])
+
+
+def _rgba(hex_color, alpha):
+    """Convert '#rrggbb' into a CSS rgba() string with the given alpha (0-1)."""
+    h = hex_color.lstrip("#")
+    if len(h) != 6:
+        return hex_color
+    r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    return f"rgba({r}, {g}, {b}, {alpha})"
+
+
+def badge_style(theme):
+    return f"""
+        color: {theme['accent']};
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 1px;
+        background: {_rgba(theme['accent'], 0.12)};
+        padding: 2px 8px;
+        border-radius: 6px;
+    """
+
+
+def small_button_style(theme):
+    return f"""
+        QPushButton {{
+            background: {theme['card_bg']};
+            color: {theme['text_primary']};
+            border: 1px solid {theme['border_color']};
+            border-radius: 6px;
+            font-size: 10px;
+            font-weight: 600;
+            padding: 3px 8px;
+        }}
+        QPushButton:hover {{
+            color: {theme['accent']};
+            border-color: {theme['accent']};
+        }}
+        QPushButton:checked {{
+            background: {theme['accent']};
+            color: {theme['bg_color']};
+            border-color: {theme['accent']};
+        }}
+        QPushButton:disabled {{
+            color: {theme['text_secondary']};
+        }}
+    """
+
+
+def list_style(theme):
+    return f"""
+        QListWidget {{
+            background: {theme['card_bg']};
+            color: {theme['text_primary']};
+            border: 1px solid {theme['border_color']};
+            border-radius: 8px;
+            font-size: 10px;
+            padding: 2px;
+            outline: none;
+        }}
+        QListWidget::item {{
+            padding: 3px 4px;
+            border-radius: 4px;
+        }}
+        QListWidget::item:selected {{
+            background: {_rgba(theme['accent'], 0.18)};
+            color: {theme['text_primary']};
+        }}
+        QListWidget::item:hover {{
+            background: {theme['bg_secondary']};
+        }}
+    """
+
+
+def input_style(theme):
+    return f"""
+        background: {theme['card_bg']};
+        color: {theme['text_primary']};
+        border: 1px solid {theme['border_color']};
+        border-radius: 8px;
+        font-size: 11px;
+        padding: 4px 6px;
+    """

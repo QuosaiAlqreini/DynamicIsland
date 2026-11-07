@@ -24,12 +24,28 @@
 * **Drag & Snap Placement:** Left-click and drag the island anywhere along the top edge of your screen. Release it near the middle to smoothly snap to center.
 * **Notch Mode:** Toggle top-edge flush docking (like a MacBook notch or Notch Nook) or a floating pill.
 
-### 2. 👀 AI Screen Vision & Multimodal Pair Programming (NEW!)
+### 2. 🧲 Notch Productivity: Shelf, Clipboard, Notes, Focus & Builds (NEW!)
+Make the island the one place you reach for, instead of hunting through windows.
+* **📥 Shelf (drop tray):** Drag files onto the island from anywhere; it pops open on the Shelf tab. Drag them back out into mail, chat, a browser upload or another folder later. Open, show in Explorer, copy path, or remove. The pill shows a badge with how many files are parked.
+* **📋 Clipboard history:** Your recent copies sit next to the shelf. Click one to copy it again; 📌 pin the ones you reuse. Unpinned history stays in memory only and is never written to disk.
+* **📝 Quick Notes:** An autosaving scratchpad. Drop text on the island to append it; insert timestamps or paste the clipboard in one click.
+* **⏱️ Focus timer:** 5/25/50-minute presets or custom minutes, with pause, +5m and stop. The countdown runs as a live activity in the pill with a progress bar.
+* **🔨 Build & task tracker:** Long-running builds, installs and test runs (`npm run build`, `cargo build`, `pytest`, `docker build`, `dotnet build`, `gradle`, ...) are detected automatically and shown as a live activity. When one finishes you get a pill flash and a Windows toast with its duration. Edit `build_watch_patterns` in the config to add your own.
+* **📌 Pinned launchers:** One-click buttons in the Tools tab for apps, folders, files or URLs (`＋` to add, right-click to unpin).
+
+### 3. ⚡ Quick Reach (less fuss)
+* **Global hotkey `Ctrl+Alt+Space`:** Opens or closes the island from any app (configurable in Preferences).
+* **Click to open:** Click the pill instead of hovering and waiting. **Middle-click** plays or pauses media. **Left-click the tray icon** to open the island.
+* **Keyboard:** `Ctrl+1..7` jumps to a tab, `Ctrl+Tab` cycles tabs, `Esc` closes. Clicking anywhere else also closes it.
+* **Stays open while you work:** It doesn't collapse while you're typing a note or dragging a file out.
+* **Remembers your last tab.**
+
+### 4. 👀 AI Screen Vision & Multimodal Pair Programming (NEW!)
 * **Live Screen Inspection:** Click **`👁️ See Screen`** in the AI Companion tab to capture your screen in real time.
 * **Multimodal Analysis:** The AI can see your IDE code, terminal compiler errors, browser layouts, or design mockups and provide immediate assistance.
 * **Auto-Attach Screen Context:** Option in Settings to automatically attach a desktop screenshot to your prompt questions.
 
-### 3. 🤖 Multi-Provider AI Accounts & Free Tier Connections (NEW!)
+### 5. 🤖 Multi-Provider AI Accounts & Free Tier Connections (NEW!)
 Open the Preferences dialog (Right-click ➔ `⚙️ Preferences & AI Accounts` or click `⚙️` in the AI tab) to connect your preferred provider:
 * **Google Gemini (Recommended Free Tier):** Generous 100% free API tier (15 RPM / 1M TPM) available via Google AI Studio without credit card.
 * **Anthropic Claude:** Industry-leading Claude 3.5 Sonnet Vision for state-of-the-art coding assistance.
@@ -38,7 +54,7 @@ Open the Preferences dialog (Right-click ➔ `⚙️ Preferences & AI Accounts` 
 * **Claude Code / Antigravity CLI Local Bridge:** Connects to your active local developer CLI sessions.
 * **Connection Tester:** Real-time ping button verifying API keys, models, and network latency.
 
-### 4. 🍏 Taskbar Customizer & MacBook Vibe (Windhawk Styler Integration) (NEW!)
+### 6. 🍏 Taskbar Customizer & MacBook Vibe (Windhawk Styler Integration) (NEW!)
 Because Dynamic Island already provides the clock, battery percentage, volume, and media player at the top of your screen, these options become redundant on the Windows taskbar!
 * **MacBook Clean Desktop Vibe (Auto-Hide Taskbar):** One-click toggle that automatically tucks away the Windows taskbar, leaving only the Dynamic Island at the top. The taskbar only slides in when your cursor touches the bottom edge.
 * **Windhawk Windows 11 Taskbar Styler Presets:** Direct XAML profiles ready to copy with one click:
@@ -46,27 +62,27 @@ Because Dynamic Island already provides the clock, battery percentage, volume, a
   * **Translucent Acrylic Glass:** Transforms the taskbar into transparent frosted glass.
   * **Clean Desk (Hide Redundant Clock & Tray):** Hides the duplicate taskbar clock, date, and tray icons.
 
-### 5. 🎵 Native Windows Media Transport Controls
+### 7. 🎵 Native Windows Media Transport Controls
 * Integrates directly with Windows System Media Transport Controls (`winsdk`) to detect music playing from **Spotify**, **Chrome**, **Edge**, **Apple Music**, or **Windows Media Player**.
 * **Controls:** One-tap Play/Pause, Next Track, Previous Track.
 * **Audio Visualizer:** Dynamic multi-bar animated waveform reacting during playback.
 * **Progress Bar:** Real-time track timeline tracking.
 
-### 6. ⚡ Real-Time Hardware Performance Telemetry
+### 8. ⚡ Real-Time Hardware Performance Telemetry
 * Circular animated SVG/Canvas gauges for:
   * **CPU Load %**
   * **RAM Usage %** (with live used / total GB)
   * **Battery %** (with charging status & power source indicator)
 * System uptime monitor.
 
-### 7. 🛠️ Quick Utilities & Shortcuts
+### 9. 🛠️ Quick Utilities & Shortcuts
 * Master **Volume Slider** with live percentage and instant mute toggle.
 * One-click **Windows Snipping Tool** (`ms-screenclip:`).
 * One-click **PowerShell Terminal** launcher.
 * One-click **Task Manager** launcher.
 * **Focus / Do Not Disturb Mode** toggle.
 
-### 8. 🎨 5 Curated Themes
+### 10. 🎨 5 Curated Themes
 Right-click the island or tray icon to instantly switch themes:
 1. **Obsidian Dark (Default):** Deep OLED black with neon cyan and violet accents.
 2. **Cyberpunk Neon:** Midnight purple with electric hot pink and cyan glow.
@@ -129,14 +145,20 @@ To achieve the clean macOS look without duplicated taskbar icons:
 
 | Action | How to Trigger |
 |---|---|
-| **Expand Dashboard** | Hover your cursor over the compact pill |
-| **Collapse Dashboard** | Move your cursor away from the expanded card |
+| **Expand Dashboard** | Hover over the pill, click it, or press `Ctrl+Alt+Space` anywhere |
+| **Park files on the Shelf** | Drag files onto the island, then drag them out when you need them |
+| **Reuse a copied snippet** | `📥 Shelf` tab → click a clipboard entry (📌 to pin) |
+| **Quick note** | `📝 Notes` tab, or right-click / tray ➔ `📝 Quick Note` |
+| **Focus timer** | `⏱️ Focus` tab, or right-click ➔ `⏱️ Start Focus Timer` |
+| **Jump to a tab** | `Ctrl+1..7`, `Ctrl+Tab` to cycle, `Esc` to close |
+| **Play / Pause** | Middle-click the island |
+| **Collapse Dashboard** | Move your cursor away, click elsewhere, or press `Esc` |
 | **Move / Reposition** | Left-click and drag the pill across the top edge |
 | **Snap to Center** | Release the pill near the center of your screen |
 | **AI Screen Vision** | Open `🤖 AI Companion` tab and click `👁️ See Screen` |
 | **Open Preferences** | Click `⚙️` in AI tab or right-click pill ➔ `⚙️ Preferences & AI Accounts` |
 | **Toggle MacBook Mode** | Right-click pill ➔ `🍏 MacBook Mode (Auto-Hide Taskbar)` |
-| **Switch Tabs** | Click `🎵 Media`, `⚡ System`, `🤖 AI Companion`, or `🛠️ Tools` |
+| **Switch Tabs** | Click `🎵 Media`, `📥 Shelf`, `📝 Notes`, `⏱️ Focus`, `🤖 AI`, `⚡ Sys`, or `🛠️ Tools` |
 | **Change Theme** | Right-click ➔ `Select Theme` (Obsidian, Cyberpunk, Nord, Glassmorphic, Porcelain) |
 | **Toggle Notch Mode** | Right-click ➔ `Toggle Notch Mode (Top Flush)` |
 | **Exit** | Right-click ➔ `Exit Dynamic Island` |
@@ -156,13 +178,21 @@ DynamicIsland/
 │   ├── media_widget.py        # Windows media card (title, artist, controls, animated visualizer)
 │   ├── system_widget.py       # Hardware monitor (circular gauges for CPU, RAM, Battery)
 │   ├── ai_agent_widget.py     # AI Companion Hub (screen vision, prompt bar, clipboard fixer, Ralph & CodeRabbit)
-│   ├── quick_tools_widget.py  # Quick Utilities HUD (volume slider, screenshot, terminal)
+│   ├── quick_tools_widget.py  # Quick Utilities HUD (volume, screenshot, terminal, pinned launchers)
+│   ├── shelf_widget.py        # File drop shelf (drag in / drag out) + clipboard history
+│   ├── notes_widget.py        # Autosaving quick notes scratchpad
+│   ├── focus_widget.py        # Focus timer + build/task tracker
 │   └── settings_dialog.py     # Preferences Dialog (AI accounts, free tiers, screen vision, taskbar styler)
 ├── services/
 │   ├── media_service.py       # Winsdk Windows Media Session integration + demo fallback
 │   ├── system_service.py      # Psutil hardware metrics collector
 │   ├── ai_service.py          # AI agent status, screen capture & multimodal API dispatch
-│   └── taskbar_service.py     # Windows taskbar auto-hide controller & Windhawk XAML presets
+│   ├── taskbar_service.py     # Windows taskbar auto-hide controller & Windhawk XAML presets
+│   ├── clipboard_service.py   # Clipboard history (memory only, pinned items persisted)
+│   ├── focus_timer_service.py # Focus / Pomodoro countdown
+│   ├── build_watch_service.py # Detects long builds/tests via psutil (background thread)
+│   ├── hotkey_service.py      # Global hotkey via Win32 RegisterHotKey
+│   └── launcher.py            # Open apps/files/folders/URLs, reveal in Explorer
 ├── requirements.txt           # Python dependencies
 ├── run.bat                    # Double-click Windows launcher
 └── prd.json                   # Ralph Loop specification & quality checks

@@ -1,16 +1,26 @@
 import os
 import subprocess
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSlider, QPushButton
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSlider, QPushButton, QMenu,
+    QFileDialog, QInputDialog
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 
+from config import ConfigManager
+from services.launcher import open_target
+from styles import small_button_style
+
+MAX_LAUNCHERS = 6
+
 class QuickToolsWidget(QWidget):
     volume_changed = pyqtSignal(int)
+    open_tab_requested = pyqtSignal(int)
 
     def __init__(self, theme, parent=None):
         super().__init__(parent)
         self.theme = theme
+        self.config = ConfigManager()
+        self.launcher_buttons = []
         self.current_volume = 65
         self.is_muted = False
         self._build_ui()
@@ -131,6 +141,96 @@ class QuickToolsWidget(QWidget):
 
         layout.addLayout(btn_row)
 
+        # Pinned launchers: one click to any app, folder, file or URL
+        self.launcher_row = QHBoxLayout()
+        self.launcher_row.setSpacing(6)
+        layout.addLayout(self.launcher_row)
+        self._rebuild_launchers()
+
+    # ------------------------------------------------------------ Launchers
+    def _launchers(self):
+        items = self.config.get("pinned_launchers", []) or []
+        return [l for l in items if isinstance(l, dict) and l.get("target")]
+
+    def _rebuild_launchers(self):
+        while self.launcher_row.count():
+            item = self.launcher_row.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        self.launcher_buttons = []
+        css = small_button_style(self.theme)
+        pin_label = QLabel("📌")
+        pin_label.setToolTip("Pinned launchers — right-click one to remove it")
+        self.launcher_row.addWidget(pin_label)
+        for idx, launcher in enumerate(self._launchers()[:MAX_LAUNCHERS]):
+            btn = QPushButton(launcher.get("name") or os.path.basename(launcher["target"]))
+            btn.setToolTip(launcher["target"])
+            btn.setStyleSheet(css)
+            btn.clicked.connect(lambda _, t=launcher["target"]: open_target(t))
+            btn.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+            btn.customContextMenuRequested.connect(lambda _, i=idx, b=btn: self._launcher_menu(i, b))
+            self.launcher_row.addWidget(btn)
+            self.launcher_buttons.append(btn)
+        if len(self._launchers()) < MAX_LAUNCHERS:
+            add_btn = QPushButton("＋")
+            add_btn.setToolTip("Pin an app, file, folder or URL")
+            add_btn.setStyleSheet(css)
+            add_btn.clicked.connect(self._add_launcher_menu)
+            self.launcher_row.addWidget(add_btn)
+            self.launcher_buttons.append(add_btn)
+        self.launcher_row.addStretch()
+
+    def _save_launchers(self, launchers):
+        self.config.set("pinned_launchers", launchers)
+        self._rebuild_launchers()
+
+    def add_launcher(self, target, name=None):
+        target = (target or "").strip()
+        if not target:
+            return
+        launchers = self._launchers()
+        if any(l["target"] == target for l in launchers):
+            return
+        if not name:
+            base = os.path.basename(target.rstrip("\\/")) or target
+            name = os.path.splitext(base)[0][:14]
+        launchers.append({"name": name, "target": target})
+        self._save_launchers(launchers[:MAX_LAUNCHERS])
+
+    def _add_launcher_menu(self):
+        menu = QMenu(self)
+        menu.addAction("📄 App or file…").triggered.connect(self._pick_file)
+        menu.addAction("📁 Folder…").triggered.connect(self._pick_folder)
+        menu.addAction("🔗 URL or command…").triggered.connect(self._pick_url)
+        menu.exec(self.cursor().pos())
+
+    def _pick_file(self):
+        path, _ = QFileDialog.getOpenFileName(self.window(), "Pin an app or file")
+        if path:
+            self.add_launcher(path)
+
+    def _pick_folder(self):
+        path = QFileDialog.getExistingDirectory(self.window(), "Pin a folder")
+        if path:
+            self.add_launcher(path)
+
+    def _pick_url(self):
+        url, ok = QInputDialog.getText(self.window(), "Pin a URL", "URL or URI (https://…, ms-settings:, spotify:):")
+        if ok and url.strip():
+            name, ok2 = QInputDialog.getText(self.window(), "Pin a URL", "Button label:")
+            self.add_launcher(url.strip(), name.strip() if ok2 and name.strip() else None)
+
+    def _launcher_menu(self, index, button):
+        menu = QMenu(self)
+        menu.addAction("✕ Unpin").triggered.connect(lambda: self._remove_launcher(index))
+        menu.exec(button.mapToGlobal(button.rect().bottomLeft()))
+
+    def _remove_launcher(self, index):
+        launchers = self._launchers()
+        if 0 <= index < len(launchers):
+            launchers.pop(index)
+            self._save_launchers(launchers)
+
     def _on_vol_changed(self, val):
         self.current_volume = val
         self.vol_text.setText(f"{val}%")
@@ -163,3 +263,4 @@ class QuickToolsWidget(QWidget):
 
     def update_theme(self, theme):
         self.theme = theme
+        self._rebuild_launchers()

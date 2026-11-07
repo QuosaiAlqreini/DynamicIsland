@@ -111,7 +111,7 @@ class SettingsDialog(QDialog):
 
         self.tabs.addTab(self.tab_ai, "🤖 AI Accounts & Vision")
         self.tabs.addTab(self.tab_taskbar, "💻 Taskbar & MacBook Vibe")
-        self.tabs.addTab(self.tab_appearance, "🎨 Appearance & Notch")
+        self.tabs.addTab(self.tab_appearance, "🎨 Appearance & Quick Reach")
         main_layout.addWidget(self.tabs)
 
         # Bottom Buttons
@@ -314,6 +314,23 @@ class SettingsDialog(QDialog):
         self.chk_hover = QCheckBox("Expand automatically when cursor hovers over the island")
         layout.addWidget(self.chk_hover)
 
+        # --- Quick reach & productivity ---
+        self.chk_click = QCheckBox("Click the pill to open it (no hover wait)")
+        layout.addWidget(self.chk_click)
+        self.chk_last_tab = QCheckBox("Reopen on the last tab I used")
+        layout.addWidget(self.chk_last_tab)
+        self.chk_clip = QCheckBox("📋 Keep clipboard history (memory only — only pinned items are saved)")
+        layout.addWidget(self.chk_clip)
+        self.chk_builds = QCheckBox("🔨 Track builds, installs & test runs as live activities")
+        layout.addWidget(self.chk_builds)
+
+        hk_row = QHBoxLayout()
+        hk_row.addWidget(QLabel("Global hotkey (restart to apply):"))
+        self.edit_hotkey = QLineEdit()
+        self.edit_hotkey.setPlaceholderText("Ctrl+Alt+Space")
+        hk_row.addWidget(self.edit_hotkey, 1)
+        layout.addLayout(hk_row)
+
         layout.addStretch()
 
     def _load_values(self):
@@ -339,6 +356,11 @@ class SettingsDialog(QDialog):
             self.combo_theme.setCurrentIndex(t_idx)
         self.chk_notch.setChecked(self.config.get("notch_mode", False))
         self.chk_hover.setChecked(self.config.get("expand_on_hover", True))
+        self.chk_click.setChecked(self.config.get("click_to_expand", True))
+        self.chk_last_tab.setChecked(self.config.get("remember_last_tab", True))
+        self.chk_clip.setChecked(self.config.get("clipboard_history_enabled", True))
+        self.chk_builds.setChecked(self.config.get("build_watch_enabled", True))
+        self.edit_hotkey.setText(self.config.get("global_hotkey", "Ctrl+Alt+Space"))
 
         # Connect AI service signal
         self.ai_service.connection_tested.connect(self._on_connection_tested)
@@ -434,5 +456,10 @@ class SettingsDialog(QDialog):
         self.config.set("theme", self.combo_theme.currentData())
         self.config.set("notch_mode", self.chk_notch.isChecked())
         self.config.set("expand_on_hover", self.chk_hover.isChecked())
+        self.config.set("click_to_expand", self.chk_click.isChecked())
+        self.config.set("remember_last_tab", self.chk_last_tab.isChecked())
+        self.config.set("clipboard_history_enabled", self.chk_clip.isChecked())
+        self.config.set("build_watch_enabled", self.chk_builds.isChecked())
+        self.config.set("global_hotkey", self.edit_hotkey.text().strip() or "Ctrl+Alt+Space")
 
         self.accept()

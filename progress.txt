@@ -30,3 +30,17 @@ Started: 2026-10-31 16:50
   - Ollama provides 100% free, offline, local vision models (such as `llama3.2-vision` and `llava`).
   - Windhawk Taskbar Styler XAML rules target `Taskbar.TaskbarFrame#TaskbarFrame` for floating dock style and `SystemTray.ClockButtonControl#ClockButton` for hiding redundant tray elements.
 ---
+
+## 2026-11-07 - US-011 to US-015 (Notch productivity: Shelf, Clipboard, Notes, Focus, Builds, Quick Reach)
+- **Implemented:**
+  - Shelf tab (file drop tray with drag-out) + clipboard history with pins.
+  - Quick Notes tab with debounced autosave; text drops append to notes.
+  - Focus timer and build/task tracker shown as live activities in a widening pill; tray toast on completion.
+  - Global hotkey (Win32 RegisterHotKey via native event filter), click-to-open, Ctrl+1..7 tab shortcuts, Esc / click-away close, remember last tab, tray left-click summons, pinned launchers.
+- **Files Changed:** config.py, styles.py, app.py, island_window.py, modules/{pill_idle,quick_tools_widget,settings_dialog,shelf_widget,notes_widget,focus_widget}.py, services/{clipboard_service,focus_timer_service,build_watch_service,hotkey_service,launcher}.py, README.md, prd.json
+- **Learnings for future iterations:**
+  - Keep tab indices stable (append new widgets to the QStackedWidget) and decouple display order via a nav spec list.
+  - Suppress auto-collapse while a QDrag is running from the shelf or while a text input has focus, otherwise the island hides mid-drag/mid-typing.
+  - Build detection: normalize argv tokens (basename, strip .exe/.cmd/.js, '-cli') and keep only the outermost matching process so cmd -> npm -> node counts once.
+  - TaskbarService needs ctypes.windll, so stub it when smoke-testing on non-Windows (QT_QPA_PLATFORM=offscreen).
+---

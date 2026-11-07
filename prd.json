@@ -1,7 +1,7 @@
 {
   "project": "DynamicIsland",
   "branchName": "main",
-  "description": "Dynamic Island for Windows with Native Media, System Monitor, AI Companion Hub with Screen Vision, Account Settings, and Taskbar MacBook Styler",
+  "description": "Dynamic Island for Windows with Native Media, System Monitor, AI Companion Hub with Screen Vision, Account Settings, and Taskbar MacBook Styler, plus notch productivity (Shelf, Clipboard, Notes, Focus, Build tracker, Quick Reach)",
   "qualityChecks": {
     "syntaxCheck": "python -m py_compile app.py",
     "smokeTest": "python -c \"import app\""
@@ -141,6 +141,75 @@
       "priority": 10,
       "passes": true,
       "notes": "Verified with TaskbarService and Windhawk Styler presets"
+    },
+    {
+      "id": "US-011",
+      "title": "Notch Shelf: drop files on the island & drag them back out",
+      "description": "Drag files onto the island from anywhere to park them; drag them out into any app later.",
+      "acceptanceCriteria": [
+        "Dragging files over the pill expands it on the Shelf tab",
+        "Dropped files persist across restarts",
+        "Files can be dragged out, opened, revealed in Explorer, path-copied or removed",
+        "Pill shows a badge with the number of shelved files"
+      ],
+      "priority": 11,
+      "passes": true,
+      "notes": "modules/shelf_widget.py; verified with offscreen QDropEvent smoke test"
+    },
+    {
+      "id": "US-012",
+      "title": "Clipboard history with pinning",
+      "description": "Keep recent clipboard text and copy any entry back with one click.",
+      "acceptanceCriteria": [
+        "History de-duplicated and capped (default 25)",
+        "Unpinned history stays in memory only; pinned items persist",
+        "Can be disabled in Preferences"
+      ],
+      "priority": 12,
+      "passes": true,
+      "notes": "services/clipboard_service.py"
+    },
+    {
+      "id": "US-013",
+      "title": "Quick Notes scratchpad",
+      "description": "Autosaving notes tab; dropping text onto the island appends it.",
+      "acceptanceCriteria": [
+        "Debounced autosave to config",
+        "Timestamp, paste-clipboard, copy-all and clear actions",
+        "Island stays open while typing"
+      ],
+      "priority": 13,
+      "passes": true,
+      "notes": "modules/notes_widget.py"
+    },
+    {
+      "id": "US-014",
+      "title": "Focus timer & build tracker live activities",
+      "description": "Pomodoro timer and automatic detection of long builds/tests shown as live activities in the pill, with toast on completion.",
+      "acceptanceCriteria": [
+        "5/25/50 min presets, custom minutes, pause/resume/+5m/stop",
+        "Pill widens and shows countdown with progress bar",
+        "Build-like processes (npm/cargo/pytest/docker/...) detected via psutil in a background thread",
+        "Toast + pill flash when a timer or build finishes"
+      ],
+      "priority": 14,
+      "passes": true,
+      "notes": "services/focus_timer_service.py, services/build_watch_service.py, modules/focus_widget.py"
+    },
+    {
+      "id": "US-015",
+      "title": "Quick reach: hotkey, click-to-open, shortcuts, launchers",
+      "description": "Reduce the effort of reaching anything in the island.",
+      "acceptanceCriteria": [
+        "Global hotkey (default Ctrl+Alt+Space) toggles the island",
+        "Click pill to open; middle-click play/pause; left-click tray icon opens",
+        "Ctrl+1..7 / Ctrl+Tab switch tabs, Esc closes, click elsewhere closes",
+        "Remembers last tab",
+        "Pinned launchers for apps, folders, files and URLs in Tools tab"
+      ],
+      "priority": 15,
+      "passes": true,
+      "notes": "services/hotkey_service.py (RegisterHotKey), island_window.py, modules/quick_tools_widget.py"
     }
   ]
 }

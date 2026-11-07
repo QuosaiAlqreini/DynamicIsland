@@ -3,11 +3,12 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QStackedWidget, QMenu
 )
 from PyQt6.QtCore import (
-    Qt, QTimer, QPropertyAnimation, QRect, QEasingCurve, pyqtProperty, QPoint
+    Qt, QTimer, QPropertyAnimation, QRect, QEasingCurve, QPoint, QEvent, pyqtSignal
 )
 from PyQt6.QtGui import (
-    QPainter, QColor, QPen, QBrush, QLinearGradient, QAction, QCursor
+    QPainter, QColor, QPen, QBrush, QLinearGradient, QCursor, QKeySequence, QShortcut
 )
+from PyQt6.QtWidgets import QApplication, QLineEdit, QPlainTextEdit, QTextEdit
 
 from config import ConfigManager
 from styles import get_theme, THEMES
@@ -17,9 +18,23 @@ from modules.system_widget import SystemWidget
 from modules.ai_agent_widget import AIAgentWidget
 from modules.quick_tools_widget import QuickToolsWidget
 from modules.settings_dialog import SettingsDialog
+from modules.shelf_widget import ShelfWidget
+from modules.notes_widget import NotesWidget
+from modules.focus_widget import FocusWidget
+from services.clipboard_service import ClipboardService
+from services.focus_timer_service import FocusTimerService, format_seconds
+from services.build_watch_service import BuildWatchService
+
+# Tab indices (kept stable so existing shortcuts keep working)
+TAB_MEDIA, TAB_SYSTEM, TAB_AI, TAB_TOOLS, TAB_SHELF, TAB_NOTES, TAB_FOCUS = range(7)
+CLICK_MOVE_THRESHOLD = 4
 
 class DynamicIslandWindow(QWidget):
-    def __init__(self, media_service, sys_service, ai_service, taskbar_service):
+    # title, message -> shown as a Windows toast by the tray icon
+    notify = pyqtSignal(str, str)
+
+    def __init__(self, media_service, sys_service, ai_service, taskbar_service,
+                 clipboard_service=None, timer_service=None, build_service=None):
         super().__init__()
         self.config = ConfigManager()
         self.theme_name = self.config.get("theme", "obsidian")
@@ -29,17 +44,25 @@ class DynamicIslandWindow(QWidget):
         self.sys_service = sys_service
         self.ai_service = ai_service
         self.taskbar_service = taskbar_service
+        self.clipboard_service = clipboard_service or ClipboardService(self)
+        self.timer_service = timer_service or FocusTimerService(self)
+        self.build_service = build_service or BuildWatchService(parent=self)
 
         # State tracking
         self.is_expanded = False
         self.is_dragging = False
         self.drag_start_pos = QPoint()
+        self.press_global_pos = QPoint()
+        self.drag_out_active = False   # a file is being dragged out of the shelf
+        self.drop_hovering = False     # something is being dragged over the island
 
         # Dimensions
-        self.compact_w = self.config.get("compact_width", 210)
+        self.base_compact_w = self.config.get("compact_width", 210)
+        self.compact_w = self.base_compact_w
         self.compact_h = self.config.get("compact_height", 36)
         self.expanded_w = self.config.get("expanded_width", 490)
-        self.expanded_h = self.config.get("expanded_height", 200)
+        # Shelf / Focus tabs need a little more room for their lists
+        self.expanded_h = max(self.config.get("expanded_height", 200), 210)
         self.top_offset = self.config.get("anchor_top_offset", 8)
         self.notch_mode = self.config.get("notch_mode", False)
 
@@ -50,6 +73,7 @@ class DynamicIslandWindow(QWidget):
             Qt.WindowType.Tool
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        self.setAcceptDrops(True)
 
         # Timers for hover smoothing
         self.hover_timer = QTimer(self)
@@ -58,12 +82,17 @@ class DynamicIslandWindow(QWidget):
 
         self.leave_timer = QTimer(self)
         self.leave_timer.setSingleShot(True)
-        self.leave_timer.timeout.connect(self.collapse)
+        self.leave_timer.timeout.connect(self._auto_collapse)
 
         # Build UI and position
         self._build_ui()
         self._setup_connections()
+        self._setup_shortcuts()
         self._reposition_compact()
+        if self.config.get("remember_last_tab", True):
+            last = self.config.get("last_tab", 0)
+            if isinstance(last, int) and 0 <= last < self.stack.count():
+                self._switch_tab(last, save=False)
 
         # Apply saved taskbar setting if configured
         if self.config.get("taskbar_autohide_macbook", False):
@@ -90,27 +119,61 @@ class DynamicIslandWindow(QWidget):
         self.sys_widget = SystemWidget(self.theme, self)
         self.ai_widget = AIAgentWidget(self.theme, self)
         self.tools_widget = QuickToolsWidget(self.theme, self)
+        self.shelf_widget = ShelfWidget(self.theme, self.clipboard_service, self)
+        self.notes_widget = NotesWidget(self.theme, self.clipboard_service, self)
+        self.focus_widget = FocusWidget(self.theme, self.timer_service, self.build_service, self)
 
         self.stack.addWidget(self.media_widget) # Index 0
         self.stack.addWidget(self.sys_widget)   # Index 1
         self.stack.addWidget(self.ai_widget)    # Index 2
         self.stack.addWidget(self.tools_widget) # Index 3
+        self.stack.addWidget(self.shelf_widget) # Index 4
+        self.stack.addWidget(self.notes_widget) # Index 5
+        self.stack.addWidget(self.focus_widget) # Index 6
 
         self.exp_layout.addWidget(self.stack)
 
         # Navigation Bar for switching modules in expanded mode
         nav_row = QHBoxLayout()
-        nav_row.setContentsMargins(16, 0, 16, 6)
-        nav_row.setSpacing(8)
+        nav_row.setContentsMargins(10, 0, 10, 6)
+        nav_row.setSpacing(5)
         nav_row.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        nav_btn_style = f"""
+        # (label, tab index, tooltip) in display order
+        nav_spec = [
+            ("🎵 Media", TAB_MEDIA, "Media controls"),
+            ("📥 Shelf", TAB_SHELF, "Dropped files + clipboard history"),
+            ("📝 Notes", TAB_NOTES, "Quick scratchpad"),
+            ("⏱️ Focus", TAB_FOCUS, "Focus timer + build tracker"),
+            ("🤖 AI", TAB_AI, "AI Companion"),
+            ("⚡ Sys", TAB_SYSTEM, "System telemetry"),
+            ("🛠️ Tools", TAB_TOOLS, "Launchers & utilities"),
+        ]
+        self.nav_buttons = {}
+        for pos, (label, index, tip) in enumerate(nav_spec, start=1):
+            btn = QPushButton(label)
+            btn.setCheckable(True)
+            btn.setToolTip(f"{tip}  (Ctrl+{pos})")
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn.clicked.connect(lambda _, i=index: self._switch_tab(i))
+            nav_row.addWidget(btn)
+            self.nav_buttons[index] = btn
+        self.nav_order = [index for _, index, _ in nav_spec]
+        self._style_nav()
+        self.nav_buttons[TAB_MEDIA].setChecked(True)
+        self.exp_layout.addLayout(nav_row)
+
+        self.main_layout.addWidget(self.expanded_container)
+        self.expanded_container.hide()
+
+    def _style_nav(self):
+        css = f"""
             QPushButton {{
                 background: {self.theme['card_bg']};
                 color: {self.theme['text_secondary']};
                 border: 1px solid {self.theme['border_color']};
-                border-radius: 12px;
-                padding: 4px 12px;
+                border-radius: 11px;
+                padding: 3px 8px;
                 font-size: 10px;
                 font-weight: 600;
             }}
@@ -124,42 +187,56 @@ class DynamicIslandWindow(QWidget):
                 border-color: {self.theme['accent']};
             }}
         """
+        for btn in self.nav_buttons.values():
+            btn.setStyleSheet(css)
 
-        self.nav_media = QPushButton("🎵 Media")
-        self.nav_media.setStyleSheet(nav_btn_style)
-        self.nav_media.setCheckable(True)
-        self.nav_media.setChecked(True)
-        self.nav_media.clicked.connect(lambda: self._switch_tab(0))
-        nav_row.addWidget(self.nav_media)
-
-        self.nav_sys = QPushButton("⚡ System")
-        self.nav_sys.setStyleSheet(nav_btn_style)
-        self.nav_sys.setCheckable(True)
-        self.nav_sys.clicked.connect(lambda: self._switch_tab(1))
-        nav_row.addWidget(self.nav_sys)
-
-        self.nav_ai = QPushButton("🤖 AI Companion")
-        self.nav_ai.setStyleSheet(nav_btn_style)
-        self.nav_ai.setCheckable(True)
-        self.nav_ai.clicked.connect(lambda: self._switch_tab(2))
-        nav_row.addWidget(self.nav_ai)
-
-        self.nav_tools = QPushButton("🛠️ Tools")
-        self.nav_tools.setStyleSheet(nav_btn_style)
-        self.nav_tools.setCheckable(True)
-        self.nav_tools.clicked.connect(lambda: self._switch_tab(3))
-        nav_row.addWidget(self.nav_tools)
-
-        self.nav_buttons = [self.nav_media, self.nav_sys, self.nav_ai, self.nav_tools]
-        self.exp_layout.addLayout(nav_row)
-
-        self.main_layout.addWidget(self.expanded_container)
-        self.expanded_container.hide()
-
-    def _switch_tab(self, index):
+    def _switch_tab(self, index, save=True):
         self.stack.setCurrentIndex(index)
-        for i, btn in enumerate(self.nav_buttons):
+        for i, btn in self.nav_buttons.items():
             btn.setChecked(i == index)
+        if save and self.config.get("remember_last_tab", True):
+            self.config.set("last_tab", index)
+
+    def open_tab(self, index):
+        """Show the island expanded on a given tab (used by menus, tray, hotkey)."""
+        self.show()
+        self.expand()
+        self._switch_tab(index)
+
+    def summon(self):
+        """Global-hotkey entry point: toggle the island open and focus it."""
+        if self.is_expanded and self.isActiveWindow():
+            self.collapse()
+            return
+        self.show()
+        self.expand()
+        self.raise_()
+        self.activateWindow()
+        if self.stack.currentIndex() == TAB_NOTES:
+            self.notes_widget.focus_editor()
+
+    def quick_note(self):
+        """Open the Notes tab with the cursor ready to type."""
+        self.open_tab(TAB_NOTES)
+        self.raise_()
+        self.activateWindow()
+        self.notes_widget.focus_editor()
+
+    def _setup_shortcuts(self):
+        ctx = Qt.ShortcutContext.WindowShortcut
+        for pos, index in enumerate(self.nav_order, start=1):
+            sc = QShortcut(QKeySequence(f"Ctrl+{pos}"), self, context=ctx)
+            sc.activated.connect(lambda i=index: (self.expand(), self._switch_tab(i)))
+        esc = QShortcut(QKeySequence(Qt.Key.Key_Escape), self, context=ctx)
+        esc.activated.connect(self.collapse)
+        for keys, step in (("Ctrl+Tab", 1), ("Ctrl+Shift+Tab", -1)):
+            sc = QShortcut(QKeySequence(keys), self, context=ctx)
+            sc.activated.connect(lambda s=step: self._cycle_tab(s))
+
+    def _cycle_tab(self, step):
+        cur = self.stack.currentIndex()
+        pos = self.nav_order.index(cur) if cur in self.nav_order else 0
+        self._switch_tab(self.nav_order[(pos + step) % len(self.nav_order)])
 
     def _setup_connections(self):
         # Media updates
@@ -183,6 +260,106 @@ class DynamicIslandWindow(QWidget):
         self.ai_widget.clipboard_action_requested.connect(self.ai_service.process_clipboard)
         self.ai_widget.coderabbit_requested.connect(self.ai_service.run_coderabbit_review)
         self.ai_widget.ralph_requested.connect(self.ai_service.run_ralph_loop)
+
+        self.idle_pill.activity_changed.connect(self._on_pill_activity)
+
+        # Shelf: keep the island open while dragging files out of it
+        self.shelf_widget.count_changed.connect(self.idle_pill.set_shelf_count)
+        self.idle_pill.set_shelf_count(len(self.shelf_widget.paths))
+        self.shelf_widget.drag_out_started.connect(self._on_drag_out_started)
+        self.shelf_widget.drag_out_finished.connect(self._on_drag_out_finished)
+
+        # Live activities in the compact pill
+        self.timer_service.tick.connect(self._on_timer_tick)
+        self.timer_service.finished.connect(self._on_timer_finished)
+        self.build_service.jobs_changed.connect(self._on_build_jobs)
+        self.build_service.job_finished.connect(self._on_build_finished)
+        self.tools_widget.open_tab_requested.connect(self._switch_tab)
+
+    # ------------------------------------------------------ Live activities
+    def _on_pill_activity(self, active):
+        """Grow the pill while a live activity (timer, build, toast) is shown."""
+        self.compact_w = self.base_compact_w + (90 if active else 0)
+        if not self.is_expanded and not self.is_dragging:
+            geom = self._get_screen_geometry()
+            x = int(geom.x() + (geom.width() - self.compact_w) / 2)
+            self._animate_to(QRect(x, self.y(), self.compact_w, self.compact_h))
+
+    def _on_timer_tick(self, remaining, total, running):
+        if remaining <= 0:
+            self.idle_pill.clear_activity("timer")
+            return
+        icon = "⏱" if running else "⏸"
+        progress = 1.0 - (remaining / total) if total else None
+        self.idle_pill.set_activity("timer", f"{icon} {self.timer_service.label} {format_seconds(remaining)}",
+                                    progress, self.theme["accent_secondary"], priority=20)
+
+    def _on_timer_finished(self, label):
+        self.idle_pill.flash(f"🔔 {label} done!", self.theme["success"], 10000)
+        self.notify.emit("⏱️ Timer finished", f"Your {label.lower()} session is over.")
+        if self.config.get("sound_effects", True):
+            QApplication.beep()
+
+    def _on_build_jobs(self, jobs):
+        if not jobs:
+            self.idle_pill.clear_activity("build")
+            return
+        import time as _time
+        first = jobs[0]
+        elapsed = format_seconds(_time.time() - first["started"])
+        extra = f" +{len(jobs) - 1}" if len(jobs) > 1 else ""
+        self.idle_pill.set_activity("build", f"🔨 {first['name']}{extra} {elapsed}",
+                                    None, self.theme["warning"], priority=10)
+
+    def _on_build_finished(self, name, duration):
+        self.idle_pill.flash(f"✅ {name} · {format_seconds(duration)}", self.theme["success"], 8000)
+        self.notify.emit("🔨 Task finished", f"{name} finished after {format_seconds(duration)}.")
+
+    # -------------------------------------------------------- Drag & drop
+    def _on_drag_out_started(self):
+        self.drag_out_active = True
+        self.leave_timer.stop()
+
+    def _on_drag_out_finished(self):
+        self.drag_out_active = False
+        if not self.geometry().contains(QCursor.pos()):
+            self.leave_timer.start(self.config.get("collapse_delay_ms", 300))
+
+    def dragEnterEvent(self, event):
+        mime = event.mimeData()
+        if self.drag_out_active:
+            event.ignore()
+            return
+        if mime.hasUrls() or mime.hasText():
+            self.drop_hovering = True
+            self.leave_timer.stop()
+            self.expand()
+            self._switch_tab(TAB_SHELF if mime.hasUrls() else TAB_NOTES, save=False)
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dragMoveEvent(self, event):
+        if self.drop_hovering:
+            event.acceptProposedAction()
+
+    def dragLeaveEvent(self, event):
+        self.drop_hovering = False
+        self.leave_timer.start(max(600, self.config.get("collapse_delay_ms", 300)))
+
+    def dropEvent(self, event):
+        self.drop_hovering = False
+        mime = event.mimeData()
+        local = [u.toLocalFile() for u in mime.urls() if u.isLocalFile()] if mime.hasUrls() else []
+        if local:
+            added = self.shelf_widget.add_paths(local)
+            self.idle_pill.flash(f"📥 {added} added to shelf" if added else "📥 Already on shelf",
+                                 self.theme["accent"], 2500)
+            self._switch_tab(TAB_SHELF)
+        elif mime.hasText():
+            self.notes_widget.append_text(mime.text())
+            self._switch_tab(TAB_NOTES)
+        event.acceptProposedAction()
 
     def _on_prompt_submitted(self, prompt):
         auto_vision = self.config.get("ai_auto_capture_screen", False)
@@ -249,6 +426,26 @@ class DynamicIslandWindow(QWidget):
         self.anim.setEasingCurve(QEasingCurve.Type.OutCubic)
         self.anim.start()
 
+    def _should_stay_open(self):
+        """Don't yank the island away while the user is typing or dragging."""
+        if self.drag_out_active or self.drop_hovering:
+            return True
+        focus = QApplication.focusWidget()
+        typing = isinstance(focus, (QLineEdit, QPlainTextEdit, QTextEdit)) and self.isAncestorOf(focus)
+        return typing and self.isActiveWindow()
+
+    def _auto_collapse(self):
+        if self.geometry().contains(QCursor.pos()) or self._should_stay_open():
+            return
+        self.collapse()
+
+    def changeEvent(self, event):
+        # Clicking anywhere else closes the island (useful after hotkey summon)
+        if event.type() == QEvent.Type.ActivationChange and not self.isActiveWindow():
+            if self.is_expanded and not self.drag_out_active:
+                self.leave_timer.start(self.config.get("collapse_delay_ms", 300))
+        super().changeEvent(event)
+
     def enterEvent(self, event):
         self.leave_timer.stop()
         if not self.is_expanded and self.config.get("expand_on_hover", True):
@@ -258,7 +455,7 @@ class DynamicIslandWindow(QWidget):
 
     def leaveEvent(self, event):
         self.hover_timer.stop()
-        if self.is_expanded:
+        if self.is_expanded and not self._should_stay_open():
             delay = self.config.get("collapse_delay_ms", 300)
             self.leave_timer.start(delay)
         super().leaveEvent(event)
@@ -266,7 +463,12 @@ class DynamicIslandWindow(QWidget):
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
             self.is_dragging = True
-            self.drag_start_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+            self.press_global_pos = event.globalPosition().toPoint()
+            self.drag_start_pos = self.press_global_pos - self.frameGeometry().topLeft()
+            event.accept()
+        elif event.button() == Qt.MouseButton.MiddleButton:
+            # Middle-click anywhere on the island: play / pause
+            self.media_service.toggle_play_pause()
             event.accept()
         elif event.button() == Qt.MouseButton.RightButton:
             self._show_context_menu(event.globalPosition().toPoint())
@@ -283,6 +485,14 @@ class DynamicIslandWindow(QWidget):
     def mouseReleaseEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton and self.is_dragging:
             self.is_dragging = False
+            moved = (event.globalPosition().toPoint() - self.press_global_pos).manhattanLength()
+            if moved <= CLICK_MOVE_THRESHOLD:
+                # Plain click on the pill opens it (no hover-and-wait needed)
+                if not self.is_expanded and self.config.get("click_to_expand", True):
+                    self.hover_timer.stop()
+                    self.expand()
+                event.accept()
+                return
             # Snap to center if close to middle
             geom = self._get_screen_geometry()
             cur_x = self.x() + self.width() / 2
@@ -337,13 +547,23 @@ class DynamicIslandWindow(QWidget):
         notch_action.setChecked(self.notch_mode)
         notch_action.triggered.connect(self._toggle_notch_mode)
 
+        # Quick reach actions
+        menu.addAction("📥 Open Shelf").triggered.connect(lambda: self.open_tab(TAB_SHELF))
+        menu.addAction("📝 Quick Note").triggered.connect(self.quick_note)
+        focus_menu = menu.addMenu("⏱️ Start Focus Timer")
+        for minutes in self.config.get("focus_presets_min", [5, 25, 50]):
+            focus_menu.addAction(f"{minutes} minutes").triggered.connect(
+                lambda _, m=minutes: self.timer_service.start(m, "Focus"))
+        if self.timer_service.active:
+            focus_menu.addAction("⏹ Stop timer").triggered.connect(self.timer_service.stop)
+
         # AI Companion Quick Trigger
         ai_action = menu.addAction("🤖 Open AI Companion")
-        ai_action.triggered.connect(lambda: (self.expand(), self._switch_tab(2)))
+        ai_action.triggered.connect(lambda: self.open_tab(TAB_AI))
 
         # Screen vision quick trigger
         vision_action = menu.addAction("👁️ Capture Screen & Ask AI")
-        vision_action.triggered.connect(lambda: (self.expand(), self._switch_tab(2), self.ai_service.analyze_screen()))
+        vision_action.triggered.connect(lambda: (self.open_tab(TAB_AI), self.ai_service.analyze_screen()))
 
         menu.addSeparator()
         quit_action = menu.addAction("❌ Exit Dynamic Island")
@@ -370,6 +590,10 @@ class DynamicIslandWindow(QWidget):
         self.sys_widget.update_theme(self.theme)
         self.ai_widget.update_theme(self.theme)
         self.tools_widget.update_theme(self.theme)
+        self.shelf_widget.update_theme(self.theme)
+        self.notes_widget.update_theme(self.theme)
+        self.focus_widget.update_theme(self.theme)
+        self._style_nav()
         self.update()
 
     def paintEvent(self, event):

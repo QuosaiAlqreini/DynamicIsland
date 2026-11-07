@@ -33,6 +33,33 @@ DEFAULT_CONFIG = {
     "taskbar_autohide_macbook": False,
     "taskbar_translucent": True,
     "taskbar_hide_clock_tray": False,
+    # --- Notch productivity features (Shelf, Clipboard, Notes, Focus, Builds) ---
+    "global_hotkey": "Ctrl+Alt+Space",
+    "click_to_expand": True,
+    "remember_last_tab": True,
+    "last_tab": 0,
+    "shelf_items": [],
+    "shelf_max_items": 30,
+    "clipboard_history_enabled": True,
+    "clipboard_history_size": 25,
+    "clipboard_pinned": [],
+    "quick_notes": "",
+    "focus_presets_min": [5, 25, 50],
+    "build_watch_enabled": True,
+    "build_watch_min_seconds": 5,
+    "build_watch_patterns": [
+        "npm run build", "npm install", "npm ci", "yarn build", "pnpm build",
+        "vite build", "next build", "tsc", "webpack",
+        "cargo build", "cargo test", "go build", "go test",
+        "dotnet build", "dotnet test", "msbuild", "gradle", "mvn",
+        "pytest", "pip install", "docker build", "docker compose build",
+        "make", "cmake --build", "ninja", "flutter build"
+    ],
+    "pinned_launchers": [
+        {"name": "Explorer", "target": "explorer.exe"},
+        {"name": "Downloads", "target": "~/Downloads"},
+        {"name": "Settings", "target": "ms-settings:"}
+    ],
     "ai_quick_actions": [
         "See Screen & Analyze",
         "Explain Clipboard",
