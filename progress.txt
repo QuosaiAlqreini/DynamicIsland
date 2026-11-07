@@ -58,3 +58,11 @@ Started: 2026-10-31 16:50
   - Wait for Ctrl/Alt/Win to be released before SendInput from a hotkey, otherwise typed text becomes shortcuts.
   - Escape '&' as '&&' in QPushButton text (Qt mnemonic).
 ---
+
+## 2026-11-07 - US-019 (Downloadable Windows app)
+- **Implemented:** build.ps1 (PyInstaller onedir + packaged-exe self-test + zip + Inno Setup), packaging/DynamicIsland.iss, .github/workflows/build-windows.yml, tests/, version.py, assets/icon.ico, single-instance guard.
+- **Learnings for future iterations:**
+  - Keep `$p.Handle` before WaitForExit in PowerShell or Start-Process ExitCode can be empty; always bound the wait.
+  - Inno Setup is preinstalled on windows-latest; `{autopf}` + PrivilegesRequired=lowest installs per-user without UAC.
+  - Release a new version: bump version.py, then push a tag `vX.Y.Z`.
+---

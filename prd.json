@@ -253,6 +253,20 @@
       "priority": 18,
       "passes": true,
       "notes": "modules/keys_widget.py; parse_ahk tested against a mixed v1/v2 sample"
+    },
+    {
+      "id": "US-019",
+      "title": "Downloadable Windows app: installer, portable exe, CI releases",
+      "description": "Users without Python can download and install Dynamic Island.",
+      "acceptanceCriteria": [
+        "PyInstaller exe with bundled icon; packaged exe passes --selftest",
+        "Per-user Inno Setup installer with shortcuts, optional autostart, uninstaller",
+        "GitHub Actions builds and tests on windows-latest; v* tags publish a Release",
+        "Single-instance guard"
+      ],
+      "priority": 19,
+      "passes": true,
+      "notes": "CI run 42368619786: 9 tests passed on Windows, exe self-test passed, Setup.exe 36.6 MB, portable zip 55 MB"
     }
   ]
 }
