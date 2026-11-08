@@ -66,3 +66,12 @@ Started: 2026-10-31 16:50
   - Inno Setup is preinstalled on windows-latest; `{autopf}` + PrivilegesRequired=lowest installs per-user without UAC.
   - Release a new version: bump version.py, then push a tag `vX.Y.Z`.
 ---
+
+## 2026-11-08 - US-020 & US-021 (Smart hiding + Customize Island)
+- **Implemented:** full-screen auto-hide, "hide at top" with cursor reveal and alert peeking, Customize Island dialog (pill slots, tabs, info items, visibility), Info tab, InfoService; version 1.3.0.
+- **Learnings for future iterations:**
+  - "Covers the monitor" alone misfires when the taskbar is auto-hidden; also require no WS_CAPTION.
+  - Hide the window after the tuck animation instead of leaving it at negative Y (a monitor above would show it).
+  - zoneinfo on Windows needs the tzdata package, and PyInstaller needs --collect-data tzdata.
+  - Run command info items with CREATE_NO_WINDOW or a console flashes every refresh in the windowed exe.
+---

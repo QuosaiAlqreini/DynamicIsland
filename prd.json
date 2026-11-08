@@ -267,6 +267,36 @@
       "priority": 19,
       "passes": true,
       "notes": "CI run 42368619786: 9 tests passed on Windows, exe self-test passed, Setup.exe 36.6 MB, portable zip 55 MB"
+    },
+    {
+      "id": "US-020",
+      "title": "Hide in full screen + auto-hide at top with cursor reveal",
+      "description": "Island gets out of the way for full-screen apps and can tuck away at the top edge.",
+      "acceptanceCriteria": [
+        "Hidden while a title-bar-less window covers the island's monitor or a D3D/presentation app runs; restored afterwards",
+        "Maximized windows (even with auto-hidden taskbar) do not count as full screen",
+        "Auto-hide mode tucks after 0.7s away; touching the top edge near the island reveals it",
+        "Optional peek for alerts; hotkey summon overrides both",
+        "Tray toggle respected"
+      ],
+      "priority": 20,
+      "passes": true,
+      "notes": "island_window._autohide_tick/_fullscreen_tick, win_input.fullscreen_app_active"
+    },
+    {
+      "id": "US-021",
+      "title": "Customize Island UI + custom info items",
+      "description": "One window to choose pill content, tabs/order, own info, and visibility.",
+      "acceptanceCriteria": [
+        "Live pill preview",
+        "Left/middle/right pill slots from built-ins or info items; default look unchanged",
+        "Tab show/hide + reorder; icon-only nav when > 8 tabs",
+        "Info items: world clock, countdown, text, command output (background, no console window)",
+        "Info tab cards; Cancel reverts"
+      ],
+      "priority": 21,
+      "passes": true,
+      "notes": "modules/customize_dialog.py, services/info_service.py, modules/info_widget.py"
     }
   ]
 }

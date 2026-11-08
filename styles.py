@@ -202,7 +202,7 @@ def dialog_style(theme):
             border-bottom: none;
         }}
         QLabel {{ color: {theme['text_primary']}; font-size: 11px; }}
-        QLineEdit, QComboBox, QPlainTextEdit {{
+        QLineEdit, QComboBox, QPlainTextEdit, QSpinBox {{
             background: {theme['card_bg']};
             color: {theme['text_primary']};
             border: 1px solid {theme['border_color']};
@@ -210,7 +210,25 @@ def dialog_style(theme):
             padding: 5px 8px;
             font-size: 11px;
         }}
-        QLineEdit:focus, QComboBox:focus, QPlainTextEdit:focus {{ border-color: {theme['accent']}; }}
+        QLineEdit:focus, QComboBox:focus, QPlainTextEdit:focus, QSpinBox:focus {{ border-color: {theme['accent']}; }}
+        QRadioButton {{ color: {theme['text_primary']}; font-size: 11px; }}
+        QRadioButton::indicator {{
+            width: 12px; height: 12px; border-radius: 7px;
+            border: 1px solid {theme['text_secondary']}; background: {theme['card_bg']};
+        }}
+        QRadioButton::indicator:checked {{
+            background: {theme['accent']}; border: 3px solid {theme['card_bg']};
+            outline: none;
+        }}
+        QListWidget {{
+            background: {theme['card_bg']};
+            color: {theme['text_primary']};
+            border: 1px solid {theme['border_color']};
+            border-radius: 6px;
+            font-size: 11px;
+        }}
+        QListWidget::item {{ padding: 4px; }}
+        QListWidget::item:selected {{ background: {_rgba(theme['accent'], 0.25)}; color: {theme['text_primary']}; }}
         QComboBox QAbstractItemView {{
             background: {theme['card_bg']};
             color: {theme['text_primary']};

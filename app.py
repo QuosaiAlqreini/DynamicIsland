@@ -129,10 +129,7 @@ def main():
 
     # Toggle action
     def toggle_island():
-        if island.isVisible():
-            island.hide()
-        else:
-            island.show()
+        island.set_user_hidden(not island.user_hidden)
 
     show_action = tray_menu.addAction(f"👁️ Toggle Island" + (f"\t{hotkey_text}" if hotkey_service.available else ""))
     show_action.triggered.connect(toggle_island)
@@ -168,6 +165,7 @@ def main():
 
     tray_menu.addAction("📥 Open Shelf").triggered.connect(lambda: island.open_tab(TAB_SHELF))
     tray_menu.addAction("📝 Quick Note").triggered.connect(island.quick_note)
+    tray_menu.addAction("🎨 Customize Island…").triggered.connect(island.open_customize)
     tray_menu.addAction("⌨️ Automations & Hotkeys…").triggered.connect(island.open_automations)
 
     # Themes submenu

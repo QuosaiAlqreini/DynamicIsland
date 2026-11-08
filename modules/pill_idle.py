@@ -1,16 +1,25 @@
 import time
 import math
-from PyQt6.QtWidgets import QWidget, QHBoxLayout, QLabel
+from PyQt6.QtWidgets import QWidget
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QPainter, QColor, QFont, QPen, QBrush
 
+DEFAULT_SLOTS = ("ai_dot", "clock", "battery_icon")
+TEXT_MAX_SIDE = 110  # max width of a text item in the left/right slot
+
+
 class IdlePillWidget(QWidget):
+    """Compact pill. Its left / center / right areas show whatever the user picked
+    in Customize Island (defaults: AI dot, clock, battery icon)."""
+
     # Emitted when a live activity appears/disappears so the island can resize
     activity_changed = pyqtSignal(bool)
 
-    def __init__(self, theme, parent=None):
+    def __init__(self, theme, parent=None, info_service=None):
         super().__init__(parent)
         self.theme = theme
+        self.info = info_service
+        self.slots = list(DEFAULT_SLOTS)
         self.agent_status = "Idle"
         self.agent_color = QColor("#10b981")
         self.is_playing = False
@@ -21,7 +30,7 @@ class IdlePillWidget(QWidget):
         self.pulse_phase = 0.0
         self.wave_phase = 0.0
 
-        # Live activities (timer, builds, ...) shown instead of the clock.
+        # Live activities (timer, builds, ...) shown instead of the center item.
         # key -> {"text", "progress" (0-1 or None), "color", "priority"}
         self.activities = {}
         self.flash_activity = None
@@ -35,23 +44,23 @@ class IdlePillWidget(QWidget):
         self.anim_timer.timeout.connect(self._animate_tick)
         self.anim_timer.start(50)
 
-        # Clock timer
+        # Clock timer (every second so "clock with seconds" works)
         self.clock_timer = QTimer(self)
-        self.clock_timer.timeout.connect(self._update_clock)
+        self.clock_timer.timeout.connect(self.update)
         self.clock_timer.start(1000)
 
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+
+    # ------------------------------------------------------------- config
+    def set_slots(self, left, center, right):
+        self.slots = [left or "none", center or "none", right or "none"]
+        self.update()
 
     def _animate_tick(self):
         self.pulse_phase = (self.pulse_phase + 0.08) % (2 * math.pi)
         if self.is_playing:
             self.wave_phase = (self.wave_phase + 0.25) % (2 * math.pi)
-        self.update()
-
-    def _update_clock(self):
-        new_time = time.strftime("%H:%M")
-        if new_time != self.time_str:
-            self.time_str = new_time
+        if "ai_dot" in self.slots or self.is_playing:
             self.update()
 
     def update_agent_status(self, status, color_hex):
@@ -113,60 +122,129 @@ class IdlePillWidget(QWidget):
         self.theme = theme
         self.update()
 
+    # ------------------------------------------------------------ painting
+    def _text_for(self, slot):
+        if slot == "clock" and self.info is None:
+            return time.strftime("%H:%M")
+        if self.info is not None:
+            return self.info.slot_text(slot)
+        return ""
+
+    def _side_width(self, painter, slot):
+        if slot in ("none", ""):
+            return 0
+        if slot == "ai_dot":
+            return 20
+        if slot == "battery_icon":
+            return 24
+        text = self._text_for(slot)
+        return min(TEXT_MAX_SIDE, painter.fontMetrics().horizontalAdvance(text) + 3) if text else 0
+
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         w, h = self.width(), self.height()
+        painter.setFont(QFont("Segoe UI", 10, QFont.Weight.DemiBold))
+        left_slot, center_slot, right_slot = self.slots
 
-        # 1. AI Glowing Dot / Ring on Left
-        pulse_alpha = int(120 + 80 * math.sin(self.pulse_phase))
-        dot_color = QColor(self.agent_color)
-        dot_color.setAlpha(pulse_alpha)
+        # Left slot (starts at x=10, like the original AI dot)
+        lw = self._side_width(painter, left_slot)
+        self._paint_slot(painter, left_slot, 10, lw, h, Qt.AlignmentFlag.AlignLeft)
+        left_end = 10 + lw + (6 if lw else 0)
 
-        # Glow halo
-        painter.setPen(Qt.PenStyle.NoPen)
-        halo_color = QColor(self.agent_color)
-        halo_color.setAlpha(int(40 + 30 * math.sin(self.pulse_phase)))
-        painter.setBrush(QBrush(halo_color))
-        painter.drawEllipse(10, int(h / 2 - 8), 16, 16)
+        # Right slot (ends 12px from the edge, like the original battery)
+        rw = self._side_width(painter, right_slot)
+        right_start = w - 12 - rw
+        self._paint_slot(painter, right_slot, right_start, rw, h, Qt.AlignmentFlag.AlignRight)
+        right_end = right_start - (6 if rw else 0)
 
-        # Inner vibrant core
-        painter.setBrush(QBrush(self.agent_color))
-        painter.drawEllipse(13, int(h / 2 - 5), 10, 10)
+        # Shelf badge (number of parked files) sits just left of the right slot
+        if self.shelf_count:
+            bx, by = right_end - 14, int(h / 2 - 7)
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QBrush(QColor(self.theme["accent"])))
+            painter.drawEllipse(bx, by, 14, 14)
+            painter.setPen(QColor(self.theme["bg_color"]))
+            painter.setFont(QFont("Segoe UI", 7, QFont.Weight.Bold))
+            painter.drawText(bx, by, 14, 14, Qt.AlignmentFlag.AlignCenter,
+                             str(self.shelf_count) if self.shelf_count < 10 else "9+")
+            painter.setFont(QFont("Segoe UI", 10, QFont.Weight.DemiBold))
+            right_end = bx - 6
 
-        # 2. Center Content: live activity, or clock + optional audio wave
-        font = QFont("Segoe UI", 10, QFont.Weight.DemiBold)
-        painter.setFont(font)
+        # Center: live activity, or the chosen center item (+ audio wave)
         activity = self.current_activity()
         if activity:
-            self._paint_activity(painter, activity, w, h)
-            self._paint_battery(painter, w, h)
+            self._paint_activity(painter, activity, left_end, right_end, h)
+        else:
+            self._paint_center(painter, center_slot, left_end, right_end, w, h)
+
+    def _paint_slot(self, painter, slot, x, width, h, align):
+        if not width:
             return
+        if slot == "ai_dot":
+            self._paint_ai_dot(painter, x, h)
+        elif slot == "battery_icon":
+            self._paint_battery(painter, x, h)
+        else:
+            text = self._text_for(slot)
+            painter.setPen(QColor(self.theme["text_secondary"]))
+            text = painter.fontMetrics().elidedText(text, Qt.TextElideMode.ElideRight, width)
+            painter.drawText(x, 0, width, h, align | Qt.AlignmentFlag.AlignVCenter, text)
+
+    def _paint_center(self, painter, slot, left, right, w, h):
+        if slot in ("none", ""):
+            return
+        if slot in ("ai_dot", "battery_icon"):
+            cx = int(w / 2 - (10 if slot == "ai_dot" else 12))
+            self._paint_slot(painter, slot, cx, 24, h, Qt.AlignmentFlag.AlignCenter)
+            return
+        text = self._text_for(slot)
+        metrics = painter.fontMetrics()
+        wave_w = 14 if self.is_playing else 0
+        avail = max(10, right - left - wave_w)
+        text = metrics.elidedText(text, Qt.TextElideMode.ElideRight, avail)
+        tw = metrics.horizontalAdvance(text)
+        # Center on the whole pill when there is room, otherwise within the free area
+        x = int(w / 2 - (tw + wave_w) / 2)
+        x = max(left, min(x, right - tw - wave_w))
         painter.setPen(QColor(self.theme["text_primary"]))
+        painter.drawText(x, 0, tw + 2, h, Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft, text)
 
-        # Draw time text
-        time_x = int(w / 2 - 20)
-        painter.drawText(time_x, int(h / 2 + 5), self.time_str)
-
-        # Draw wave bars if playing
         if self.is_playing:
-            wave_color = QColor(self.theme["accent"])
             painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(QBrush(wave_color))
-            bar_x = time_x + 44
+            painter.setBrush(QBrush(QColor(self.theme["accent"])))
+            bar_x = x + tw + 4
             for i in range(3):
                 bar_h = int(4 + 6 * abs(math.sin(self.wave_phase + i * 0.8)))
-                bar_y = int(h / 2 - bar_h / 2)
-                painter.drawRoundedRect(bar_x + i * 4, bar_y, 2, bar_h, 1, 1)
+                painter.drawRoundedRect(bar_x + i * 4, int(h / 2 - bar_h / 2), 2, bar_h, 1, 1)
 
-        self._paint_battery(painter, w, h)
+    def _paint_ai_dot(self, painter, x, h):
+        painter.setPen(Qt.PenStyle.NoPen)
+        halo = QColor(self.agent_color)
+        halo.setAlpha(int(40 + 30 * math.sin(self.pulse_phase)))
+        painter.setBrush(QBrush(halo))
+        painter.drawEllipse(x, int(h / 2 - 8), 16, 16)
+        painter.setBrush(QBrush(self.agent_color))
+        painter.drawEllipse(x + 3, int(h / 2 - 5), 10, 10)
 
-    def _paint_activity(self, painter, activity, w, h):
+    def _paint_battery(self, painter, x, h):
+        bat_w, bat_h = 20, 10
+        bat_y = int(h / 2 - bat_h / 2)
+        painter.setPen(QPen(QColor(self.theme["text_secondary"]), 1))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawRoundedRect(x, bat_y, bat_w, bat_h, 2, 2)
+        painter.drawRect(x + bat_w, bat_y + 3, 2, 4)
+        fill_w = max(2, int((bat_w - 4) * (self.battery_pct / 100.0)))
+        fill_color = QColor(self.theme["success"] if self.battery_pct > 20 else self.theme["danger"])
+        painter.setBrush(QBrush(fill_color))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.drawRect(x + 2, bat_y + 2, fill_w, bat_h - 4)
+
+    def _paint_activity(self, painter, activity, left, right, h):
         color = QColor(activity.get("color") or self.theme["accent"])
-        left, right = 32, w - 44 - (18 if self.shelf_count else 0)
         painter.setPen(QColor(self.theme["text_primary"]))
         metrics = painter.fontMetrics()
-        text = metrics.elidedText(activity["text"], Qt.TextElideMode.ElideRight, right - left)
+        text = metrics.elidedText(activity["text"], Qt.TextElideMode.ElideRight, max(10, right - left))
         painter.drawText(left, 0, right - left, h, Qt.AlignmentFlag.AlignCenter, text)
 
         progress = activity.get("progress")
@@ -179,34 +257,3 @@ class IdlePillWidget(QWidget):
             painter.drawRoundedRect(left, h - 6, track_w, 3, 1.5, 1.5)
             painter.setBrush(QBrush(color))
             painter.drawRoundedRect(left, h - 6, max(3, int(track_w * min(1.0, progress))), 3, 1.5, 1.5)
-
-    def _paint_battery(self, painter, w, h):
-        # Shelf badge (number of parked files)
-        if self.shelf_count:
-            painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(QBrush(QColor(self.theme["accent"])))
-            bx, by = w - 56, int(h / 2 - 7)
-            painter.drawEllipse(bx, by, 14, 14)
-            painter.setPen(QColor(self.theme["bg_color"]))
-            painter.setFont(QFont("Segoe UI", 7, QFont.Weight.Bold))
-            painter.drawText(bx, by, 14, 14, Qt.AlignmentFlag.AlignCenter,
-                             str(self.shelf_count) if self.shelf_count < 10 else "9+")
-
-        # 3. Right: Battery Pill
-        bat_w, bat_h = 20, 10
-        bat_x = w - bat_w - 14
-        bat_y = int(h / 2 - bat_h / 2)
-
-        # Battery outline
-        painter.setPen(QPen(QColor(self.theme["text_secondary"]), 1))
-        painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.drawRoundedRect(bat_x, bat_y, bat_w, bat_h, 2, 2)
-        # Battery terminal
-        painter.drawRect(bat_x + bat_w, bat_y + 3, 2, 4)
-
-        # Battery fill level
-        fill_w = max(2, int((bat_w - 4) * (self.battery_pct / 100.0)))
-        fill_color = QColor(self.theme["success"] if self.battery_pct > 20 else self.theme["danger"])
-        painter.setBrush(QBrush(fill_color))
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.drawRect(bat_x + 2, bat_y + 2, fill_w, bat_h - 4)

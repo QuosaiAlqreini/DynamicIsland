@@ -24,7 +24,22 @@
 * **Drag & Snap Placement:** Left-click and drag the island anywhere along the top edge of your screen. Release it near the middle to smoothly snap to center.
 * **Notch Mode:** Toggle top-edge flush docking (like a MacBook notch or Notch Nook) or a floating pill.
 
-### 2. 🧲 Notch Productivity: Shelf, Clipboard, Notes, Focus & Builds (NEW!)
+### 2. 🎨 Make It Yours: Customize Island & Smart Hiding (NEW!)
+Right-click the island (or the tray icon) ➔ **`🎨 Customize Island…`**. A live preview of the pill updates as you change things.
+* **💊 Pill:** choose what the left, middle and right of the small pill show: the AI status dot, a clock (with or without seconds), the date, a battery icon or %, CPU, RAM, the song that's playing, or any of your own info items. You can also change the pill's width. The default stays the classic AI dot · clock · battery.
+* **🗂️ Tabs:** tick the tabs you want and drag them into your order. `Ctrl+1..9` follows your order.
+* **ℹ️ Info (add your own info to the island):**
+  * **World clock:** `Asia/Riyadh`, `Europe/London`, or an offset like `+3`.
+  * **Countdown:** to a date like `2026-12-25 18:00`.
+  * **Custom text:** a reminder or a status line.
+  * **Command output:** the first line a command prints, refreshed every N seconds. For example, weather with `curl -s "wttr.in/?format=%t+%C"`.
+  * Every item gets a card in the **ℹ️ Info** tab, and you can put any of them in the pill.
+* **👁️ Visibility:**
+  * **Hide in full screen:** the island disappears while a game, video, presentation or full-screen (F11) browser is in front, and comes back when you leave. `Ctrl+Alt+Space` still opens it if you need it.
+  * **Hide at the top:** the island tucks away above the screen and slides down when your cursor touches the top edge near it. Optionally it peeks down for finished timers, builds and alerts. Quick toggle: right-click ➔ `🫥 Hide at Top`.
+  * Hover/click-to-open, notch mode and theme are all in one place.
+
+### 3. 🧲 Notch Productivity: Shelf, Clipboard, Notes, Focus & Builds (NEW!)
 Make the island the one place you reach for, instead of hunting through windows.
 * **📥 Shelf (drop tray):** Drag files onto the island from anywhere; it pops open on the Shelf tab. Drag them back out into mail, chat, a browser upload or another folder later. Open, show in Explorer, copy path, or remove. The pill shows a badge with how many files are parked.
 * **📋 Clipboard history:** Your recent copies sit next to the shelf. Click one to copy it again; 📌 pin the ones you reuse. Unpinned history stays in memory only and is never written to disk.
@@ -33,14 +48,14 @@ Make the island the one place you reach for, instead of hunting through windows.
 * **🔨 Build & task tracker:** Long-running builds, installs and test runs (`npm run build`, `cargo build`, `pytest`, `docker build`, `dotnet build`, `gradle`, ...) are detected automatically and shown as a live activity. When one finishes you get a pill flash and a Windows toast with its duration. Edit `build_watch_patterns` in the config to add your own.
 * **📌 Pinned launchers:** One-click buttons in the Tools tab for apps, folders, files or URLs (`＋` to add, right-click to unpin).
 
-### 3. ⚡ Quick Reach (less fuss)
+### 4. ⚡ Quick Reach (less fuss)
 * **Global hotkey `Ctrl+Alt+Space`:** Opens or closes the island from any app (configurable in Preferences).
 * **Click to open:** Click the pill instead of hovering and waiting. **Middle-click** plays or pauses media. **Left-click the tray icon** to open the island.
 * **Keyboard:** `Ctrl+1..8` jumps to a tab, `Ctrl+Tab` cycles tabs, `Esc` closes. Clicking anywhere else also closes it.
 * **Stays open while you work:** It doesn't collapse while you're typing a note or dragging a file out.
 * **Remembers your last tab.**
 
-### 4. ⌨️ Automations — built-in AutoHotkey (NEW!)
+### 5. ⌨️ Automations — built-in AutoHotkey (NEW!)
 A system-wide hotkey and text-expansion engine, so Dynamic Island can replace a pile of separate utilities. Open it from the **⌨️ Keys** tab → `✏️ Edit`, right-click ➔ `⌨️ Automations & Hotkeys…`, or the tray.
 * **Custom global hotkeys → actions.** Record any shortcut (F-keys, Pause, `CapsLock` etc. can be used alone) and bind it to:
   * **Apps & files:** open an app/file/folder/URL, run a command, run hidden PowerShell, or run a real `.ahk` script.
@@ -70,12 +85,12 @@ A system-wide hotkey and text-expansion engine, so Dynamic Island can replace a 
 
 Starter hotstrings: `;date`, `;time`, `;now`, `;shrug`, `;ty`.
 
-### 5. 👀 AI Screen Vision & Multimodal Pair Programming (NEW!)
+### 6. 👀 AI Screen Vision & Multimodal Pair Programming (NEW!)
 * **Live Screen Inspection:** Click **`👁️ See Screen`** in the AI Companion tab to capture your screen in real time.
 * **Multimodal Analysis:** The AI can see your IDE code, terminal compiler errors, browser layouts, or design mockups and provide immediate assistance.
 * **Auto-Attach Screen Context:** Option in Settings to automatically attach a desktop screenshot to your prompt questions.
 
-### 6. 🤖 Multi-Provider AI Accounts & Free Tier Connections (NEW!)
+### 7. 🤖 Multi-Provider AI Accounts & Free Tier Connections (NEW!)
 Open the Preferences dialog (Right-click ➔ `⚙️ Preferences & AI Accounts` or click `⚙️` in the AI tab) to connect your preferred provider:
 * **Google Gemini (Recommended Free Tier):** Generous 100% free API tier (15 RPM / 1M TPM) available via Google AI Studio without credit card.
 * **Anthropic Claude:** Industry-leading Claude 3.5 Sonnet Vision for state-of-the-art coding assistance.
@@ -84,7 +99,7 @@ Open the Preferences dialog (Right-click ➔ `⚙️ Preferences & AI Accounts` 
 * **Claude Code / Antigravity CLI Local Bridge:** Connects to your active local developer CLI sessions.
 * **Connection Tester:** Real-time ping button verifying API keys, models, and network latency.
 
-### 7. 🍏 Taskbar Customizer & MacBook Vibe (Windhawk Styler Integration) (NEW!)
+### 8. 🍏 Taskbar Customizer & MacBook Vibe (Windhawk Styler Integration) (NEW!)
 Because Dynamic Island already provides the clock, battery percentage, volume, and media player at the top of your screen, these options become redundant on the Windows taskbar!
 * **MacBook Clean Desktop Vibe (Auto-Hide Taskbar):** One-click toggle that automatically tucks away the Windows taskbar, leaving only the Dynamic Island at the top. The taskbar only slides in when your cursor touches the bottom edge.
 * **Windhawk Windows 11 Taskbar Styler Presets:** Direct XAML profiles ready to copy with one click:
@@ -92,27 +107,27 @@ Because Dynamic Island already provides the clock, battery percentage, volume, a
   * **Translucent Acrylic Glass:** Transforms the taskbar into transparent frosted glass.
   * **Clean Desk (Hide Redundant Clock & Tray):** Hides the duplicate taskbar clock, date, and tray icons.
 
-### 8. 🎵 Native Windows Media Transport Controls
+### 9. 🎵 Native Windows Media Transport Controls
 * Integrates directly with Windows System Media Transport Controls (`winsdk`) to detect music playing from **Spotify**, **Chrome**, **Edge**, **Apple Music**, or **Windows Media Player**.
 * **Controls:** One-tap Play/Pause, Next Track, Previous Track.
 * **Audio Visualizer:** Dynamic multi-bar animated waveform reacting during playback.
 * **Progress Bar:** Real-time track timeline tracking.
 
-### 9. ⚡ Real-Time Hardware Performance Telemetry
+### 10. ⚡ Real-Time Hardware Performance Telemetry
 * Circular animated SVG/Canvas gauges for:
   * **CPU Load %**
   * **RAM Usage %** (with live used / total GB)
   * **Battery %** (with charging status & power source indicator)
 * System uptime monitor.
 
-### 10. 🛠️ Quick Utilities & Shortcuts
+### 11. 🛠️ Quick Utilities & Shortcuts
 * Master **Volume Slider** with live percentage and instant mute toggle.
 * One-click **Windows Snipping Tool** (`ms-screenclip:`).
 * One-click **PowerShell Terminal** launcher.
 * One-click **Task Manager** launcher.
 * **Focus / Do Not Disturb Mode** toggle.
 
-### 11. 🎨 5 Curated Themes
+### 12. 🎨 5 Curated Themes
 Right-click the island or tray icon to instantly switch themes:
 1. **Obsidian Dark (Default):** Deep OLED black with neon cyan and violet accents.
 2. **Cyberpunk Neon:** Midnight purple with electric hot pink and cyan glow.
@@ -194,7 +209,9 @@ To achieve the clean macOS look without duplicated taskbar icons:
 | **Reuse a copied snippet** | `📥 Shelf` tab → click a clipboard entry (📌 to pin) |
 | **Quick note** | `📝 Notes` tab, or right-click / tray ➔ `📝 Quick Note` |
 | **Focus timer** | `⏱️ Focus` tab, or right-click ➔ `⏱️ Start Focus Timer` |
-| **Jump to a tab** | `Ctrl+1..8`, `Ctrl+Tab` to cycle, `Esc` to close |
+| **Customize pill, tabs & info** | Right-click ➔ `🎨 Customize Island…` |
+| **Hide at the top** | Right-click ➔ `🫥 Hide at Top`, then touch the top edge to show it |
+| **Jump to a tab** | `Ctrl+1..9`, `Ctrl+Tab` to cycle, `Esc` to close |
 | **Edit automations** | `⌨️ Keys` tab ➔ `✏️ Edit`, or right-click ➔ `⌨️ Automations & Hotkeys…` |
 | **Play / Pause** | Middle-click the island |
 | **Collapse Dashboard** | Move your cursor away, click elsewhere, or press `Esc` |
@@ -227,6 +244,9 @@ DynamicIsland/
 │   ├── shelf_widget.py        # File drop shelf (drag in / drag out) + clipboard history
 │   ├── notes_widget.py        # Autosaving quick notes scratchpad
 │   ├── focus_widget.py        # Focus timer + build/task tracker
+│   ├── customize_dialog.py    # Customize Island: pill slots, tabs, info items, visibility
+│   ├── info_widget.py         # Info tab cards for your own info items
+│   ├── tab_registry.py        # Tab names/icons and default order
 │   ├── keys_widget.py         # One-click automations panel + hotstring / keep-awake toggles
 │   ├── automation_dialog.py   # Hotkey recorder, action editor, hotstrings table, .ahk importer
 │   └── settings_dialog.py     # Preferences Dialog (AI accounts, free tiers, screen vision, taskbar styler)
@@ -239,6 +259,7 @@ DynamicIsland/
 │   ├── focus_timer_service.py # Focus / Pomodoro countdown
 │   ├── build_watch_service.py # Detects long builds/tests via psutil (background thread)
 │   ├── hotkey_service.py      # Global hotkeys via Win32 RegisterHotKey
+│   ├── info_service.py        # World clocks, countdowns, custom text, command output
 │   ├── automation_service.py  # Action engine, macro registration, AutoHotkey script converter
 │   ├── hotstring_engine.py    # Text expansion via low-level keyboard hook
 │   ├── win_input.py           # SendInput typing, window control, brightness, keep-awake, dark mode

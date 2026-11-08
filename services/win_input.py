@@ -53,6 +53,7 @@ if IS_WINDOWS:
     user32.IsZoomed.argtypes = (wintypes.HWND,)
     user32.PostMessageW.argtypes = (wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM)
     user32.GetWindowTextW.argtypes = (wintypes.HWND, wintypes.LPWSTR, ctypes.c_int)
+    user32.GetClassNameW.argtypes = (wintypes.HWND, wintypes.LPWSTR, ctypes.c_int)
     user32.GetAsyncKeyState.restype = ctypes.c_short
     user32.VkKeyScanW.restype = ctypes.c_short
 
@@ -361,3 +362,46 @@ def app_launch_command():
             exe = pyw
     script = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "app.py"))
     return f'"{exe}" "{script}"'
+
+
+# -------------------------------------------------------------- Fullscreen
+_SHELL_CLASSES = {"Progman", "WorkerW", "Shell_TrayWnd", "Shell_SecondaryTrayWnd"}
+
+
+def _class_name(hwnd):
+    buf = ctypes.create_unicode_buffer(128)
+    user32.GetClassNameW(hwnd, buf, 128)
+    return buf.value
+
+
+def fullscreen_app_active(island_hwnd=None):
+    """True when the foreground window covers its whole monitor (games, videos,
+    presentations, F11 browsers) on the same monitor as the island."""
+    if not IS_WINDOWS:
+        return False
+    try:
+        hwnd = user32.GetForegroundWindow()
+        if not hwnd or (island_hwnd and int(hwnd) == int(island_hwnd)):
+            return False
+        if _class_name(hwnd) in _SHELL_CLASSES:
+            return False
+        mon = user32.MonitorFromWindow(hwnd, 2)
+        if island_hwnd and mon != user32.MonitorFromWindow(island_hwnd, 2):
+            return False
+        info = MONITORINFO()
+        info.cbSize = ctypes.sizeof(MONITORINFO)
+        user32.GetMonitorInfoW(mon, ctypes.byref(info))
+        r = wintypes.RECT()
+        user32.GetWindowRect(hwnd, ctypes.byref(r))
+        m = info.rcMonitor
+        covers = r.left <= m.left and r.top <= m.top and r.right >= m.right and r.bottom >= m.bottom
+        has_title_bar = (user32.GetWindowLongW(hwnd, -16) & 0x00C00000) == 0x00C00000  # WS_CAPTION
+        if covers and not has_title_bar:
+            return True
+        # Exclusive-mode Direct3D games / presentation mode
+        state = ctypes.c_int(0)
+        if ctypes.windll.shell32.SHQueryUserNotificationState(ctypes.byref(state)) == 0:
+            return state.value in (3, 4)  # QUNS_RUNNING_D3D_FULL_SCREEN, QUNS_PRESENTATION_MODE
+    except Exception:
+        pass
+    return False

@@ -87,3 +87,62 @@ def test_keep_awake_and_foreground_calls():
     assert win_input.set_keep_awake(False)
     win_input.foreground_window()  # must not raise
     assert win_input.app_launch_command().startswith('"')
+
+
+# ------------------------------------------------- customization & visibility
+def test_info_values():
+    import datetime as dt
+    from services.info_service import world_clock_text, countdown_text
+    noon = dt.datetime(2026, 11, 8, 12, 0, tzinfo=dt.timezone.utc)
+    assert world_clock_text("+3", noon) == "15:00"
+    assert world_clock_text("Asia/Tokyo", noon) == "21:00"   # needs tzdata on Windows
+    assert world_clock_text("Mars/Base", noon) == "bad zone"
+    assert countdown_text("2026-12-25", dt.datetime(2026, 11, 8, 12)) == "46d 12h"
+
+
+def _island():
+    from services.media_service import MediaService
+    from services.system_service import SystemMonitorService
+    from services.ai_service import AIService
+    from services.taskbar_service import TaskbarService
+    from island_window import DynamicIslandWindow
+    return DynamicIslandWindow(MediaService(), SystemMonitorService(), AIService(), TaskbarService())
+
+
+def test_customization_applies(qapp):
+    from config import ConfigManager
+    from island_window import TAB_INFO, TAB_MEDIA
+    c = ConfigManager()
+    w = _island()
+    c.set("info_items", [{"id": "a1", "type": "text", "label": "Today", "value": "Gym 6pm"}])
+    w.info_service.refresh()
+    c.set("pill_center", "info:a1")
+    c.set("tabs_visible", ["info", "media"])
+    w.apply_customization()
+    assert w.nav_order == [TAB_INFO, TAB_MEDIA]
+    assert w.idle_pill.slots[1] == "info:a1"
+    assert w.info_service.slot_text("info:a1") == "Gym 6pm"
+    c.set("tabs_visible", ["media", "shelf", "notes", "focus", "keys", "ai", "system", "tools"])
+    c.set("pill_center", "clock")
+
+
+def test_autohide_tuck_and_reveal(qapp):
+    from config import ConfigManager
+    c = ConfigManager()
+    c.set("visibility_mode", "autohide")
+    w = _island()
+    w.show()
+    w._tuck()
+    assert w.tucked
+    w._reveal(animate=False)
+    assert not w.tucked and w.isVisible()
+    w.set_user_hidden(True)
+    assert not w.isVisible()
+    w.set_user_hidden(False)
+    c.set("visibility_mode", "always")
+
+
+@windows_only
+def test_fullscreen_check_does_not_crash():
+    from services import win_input
+    assert win_input.fullscreen_app_active(None) in (True, False)

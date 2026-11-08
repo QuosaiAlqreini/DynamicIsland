@@ -55,6 +55,16 @@ DEFAULT_CONFIG = {
         "pytest", "pip install", "docker build", "docker compose build",
         "make", "cmake --build", "ninja", "flutter build"
     ],
+    # --- Visibility & customization ---
+    "visibility_mode": "always",       # "always" | "autohide" (tucked at the top, cursor reveals)
+    "hide_in_fullscreen": True,
+    "peek_on_activity": True,          # auto-hide mode: slide down for timers/builds/alerts
+    "reveal_zone_px": 220,             # half-width of the top-edge hot zone around the island
+    "pill_left": "ai_dot",
+    "pill_center": "clock",
+    "pill_right": "battery_icon",
+    "tabs_visible": ["media", "shelf", "notes", "focus", "keys", "ai", "system", "tools"],
+    "info_items": [],
     # --- AutoHotkey-style automation ---
     "launch_at_login": False,
     "hotstrings_enabled": True,

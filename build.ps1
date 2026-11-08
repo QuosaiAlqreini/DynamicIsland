@@ -18,6 +18,7 @@ python -m PyInstaller --noconfirm --clean --windowed `
     --add-data "assets;assets" `
     --hidden-import winsdk.windows.media.control `
     --hidden-import winsdk.windows.foundation `
+    --collect-data tzdata `
     --exclude-module tkinter `
     app.py
 
