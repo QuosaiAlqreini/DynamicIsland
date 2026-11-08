@@ -46,7 +46,7 @@ class IdlePillWidget(QWidget):
 
         # Clock timer (every second so "clock with seconds" works)
         self.clock_timer = QTimer(self)
-        self.clock_timer.timeout.connect(self.update)
+        self.clock_timer.timeout.connect(lambda: self.update() if self.isVisible() else None)
         self.clock_timer.start(1000)
 
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
@@ -57,6 +57,8 @@ class IdlePillWidget(QWidget):
         self.update()
 
     def _animate_tick(self):
+        if not self.isVisible() or not self.window().isVisible():
+            return  # hidden (expanded, tucked, full screen): don't repaint
         self.pulse_phase = (self.pulse_phase + 0.08) % (2 * math.pi)
         if self.is_playing:
             self.wave_phase = (self.wave_phase + 0.25) % (2 * math.pi)

@@ -1,4 +1,5 @@
 import asyncio
+import threading
 from PyQt6.QtCore import QObject, pyqtSignal, QTimer
 
 try:
@@ -15,14 +16,21 @@ DEMO_TRACKS = [
 ]
 
 class MediaService(QObject):
+    """Windows media session (Spotify, browsers, ...) with a demo fallback.
+
+    All WinRT calls run on a background thread with one persistent asyncio
+    loop, so the UI never waits for Windows. Results come back via a queued
+    Qt signal.
+    """
     media_updated = pyqtSignal(dict)
+    _native_done = pyqtSignal(str, object)   # (kind, result)
 
     def __init__(self, interval_ms=1200):
         super().__init__()
         self.interval_ms = interval_ms
         self.timer = QTimer(self)
         self.timer.timeout.connect(self._poll_media)
-        
+
         self.is_playing = False
         self.demo_index = 0
         self.current_media = {
@@ -34,6 +42,13 @@ class MediaService(QObject):
             "position_sec": 0,
             "duration_sec": 180
         }
+        self._manager = None
+        self._poll_pending = False
+        self._loop = None
+        self._native_done.connect(self._on_native_done)
+        if HAS_WINSDK:
+            self._loop = asyncio.new_event_loop()
+            threading.Thread(target=self._loop.run_forever, name="media-winrt", daemon=True).start()
 
     def start(self):
         self._poll_media()
@@ -42,35 +57,57 @@ class MediaService(QObject):
     def stop(self):
         self.timer.stop()
 
-    def _poll_media(self):
-        if HAS_WINSDK:
-            try:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                media_info = loop.run_until_complete(self._get_native_media())
-                loop.close()
-                if media_info:
-                    self.current_media = media_info
-                    self.media_updated.emit(self.current_media)
-                    return
-            except Exception:
-                pass
+    # ------------------------------------------------------------ plumbing
+    def _submit(self, kind, coro):
+        """Run a coroutine on the media thread; result arrives in _on_native_done."""
+        future = asyncio.run_coroutine_threadsafe(coro, self._loop)
 
-        # If native media is idle or not present, emit current or demo state
+        def done(f):
+            try:
+                result = f.result()
+            except Exception:
+                result = None
+            self._native_done.emit(kind, result)
+        future.add_done_callback(done)
+
+    def _on_native_done(self, kind, result):
+        if kind == "poll":
+            self._poll_pending = False
+            if result:
+                self.current_media = result
+            self.media_updated.emit(self.current_media)
+            return
+        # Transport buttons: refresh on success, otherwise use the demo fallback
+        if result:
+            QTimer.singleShot(250, self._poll_media)
+        else:
+            {"play_pause": self._demo_play_pause, "next": self._demo_next,
+             "prev": self._demo_prev}[kind]()
+
+    async def _session(self):
+        if self._manager is None:
+            self._manager = await wmc.GlobalSystemMediaTransportControlsSessionManager.request_async()
+        return self._manager.get_current_session()
+
+    # ---------------------------------------------------------------- poll
+    def _poll_media(self):
+        if self._loop is not None:
+            if not self._poll_pending:
+                self._poll_pending = True
+                self._submit("poll", self._get_native_media())
+            return
         self.media_updated.emit(self.current_media)
 
     async def _get_native_media(self):
         try:
-            manager = await wmc.GlobalSystemMediaTransportControlsSessionManager.request_async()
-            session = manager.get_current_session()
+            session = await self._session()
             if not session:
                 return None
 
             info = await session.try_get_media_properties_async()
             playback_info = session.get_playback_info()
-            
+
             status = playback_info.playback_status if playback_info else None
-            # 4 is Playing, 5 is Paused in Windows Media Control
             is_playing = (status == wmc.GlobalSystemMediaTransportControlsSessionPlaybackStatus.PLAYING) if status else False
 
             timeline = session.get_timeline_properties()
@@ -78,7 +115,6 @@ class MediaService(QObject):
             dur = timeline.end_time.total_seconds() if timeline and timeline.end_time else 180
 
             app_id = session.source_app_user_model_id or "Player"
-            # Clean up app id
             app_name = app_id.split("!")[-1] if "!" in app_id else app_id
             if "Spotify" in app_name:
                 app_name = "Spotify"
@@ -98,22 +134,40 @@ class MediaService(QObject):
                 "duration_sec": int(dur) if dur > 0 else 180
             }
         except Exception:
+            self._manager = None  # re-acquire next time
             return None
 
-    def toggle_play_pause(self):
-        if HAS_WINSDK:
-            try:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                success = loop.run_until_complete(self._native_play_pause())
-                loop.close()
-                if success:
-                    self._poll_media()
-                    return
-            except Exception:
-                pass
+    # ----------------------------------------------------------- controls
+    async def _transport(self, method):
+        try:
+            session = await self._session()
+            if session:
+                await getattr(session, method)()
+                return True
+        except Exception:
+            self._manager = None
+        return False
 
-        # Demo toggle fallback
+    def toggle_play_pause(self):
+        if self._loop is not None:
+            self._submit("play_pause", self._transport("try_toggle_play_pause_async"))
+        else:
+            self._demo_play_pause()
+
+    def next_track(self):
+        if self._loop is not None:
+            self._submit("next", self._transport("try_skip_next_async"))
+        else:
+            self._demo_next()
+
+    def previous_track(self):
+        if self._loop is not None:
+            self._submit("prev", self._transport("try_skip_previous_async"))
+        else:
+            self._demo_prev()
+
+    # --------------------------------------------------------------- demo
+    def _demo_play_pause(self):
         self.current_media["is_playing"] = not self.current_media.get("is_playing", False)
         if not self.current_media.get("has_media"):
             track = DEMO_TRACKS[self.demo_index]
@@ -125,32 +179,8 @@ class MediaService(QObject):
             })
         self.media_updated.emit(self.current_media)
 
-    async def _native_play_pause(self):
-        try:
-            manager = await wmc.GlobalSystemMediaTransportControlsSessionManager.request_async()
-            session = manager.get_current_session()
-            if session:
-                await session.try_toggle_play_pause_async()
-                return True
-        except Exception:
-            pass
-        return False
-
-    def next_track(self):
-        if HAS_WINSDK:
-            try:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                success = loop.run_until_complete(self._native_next())
-                loop.close()
-                if success:
-                    self._poll_media()
-                    return
-            except Exception:
-                pass
-
-        # Demo next
-        self.demo_index = (self.demo_index + 1) % len(DEMO_TRACKS)
+    def _demo_step(self, step):
+        self.demo_index = (self.demo_index + step) % len(DEMO_TRACKS)
         track = DEMO_TRACKS[self.demo_index]
         self.current_media.update({
             "title": track["title"],
@@ -161,49 +191,8 @@ class MediaService(QObject):
         })
         self.media_updated.emit(self.current_media)
 
-    async def _native_next(self):
-        try:
-            manager = await wmc.GlobalSystemMediaTransportControlsSessionManager.request_async()
-            session = manager.get_current_session()
-            if session:
-                await session.try_skip_next_async()
-                return True
-        except Exception:
-            pass
-        return False
+    def _demo_next(self):
+        self._demo_step(1)
 
-    def previous_track(self):
-        if HAS_WINSDK:
-            try:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                success = loop.run_until_complete(self._native_prev())
-                loop.close()
-                if success:
-                    self._poll_media()
-                    return
-            except Exception:
-                pass
-
-        # Demo prev
-        self.demo_index = (self.demo_index - 1) % len(DEMO_TRACKS)
-        track = DEMO_TRACKS[self.demo_index]
-        self.current_media.update({
-            "title": track["title"],
-            "artist": track["artist"],
-            "source": track["source"],
-            "is_playing": True,
-            "has_media": True
-        })
-        self.media_updated.emit(self.current_media)
-
-    async def _native_prev(self):
-        try:
-            manager = await wmc.GlobalSystemMediaTransportControlsSessionManager.request_async()
-            session = manager.get_current_session()
-            if session:
-                await session.try_skip_previous_async()
-                return True
-        except Exception:
-            pass
-        return False
+    def _demo_prev(self):
+        self._demo_step(-1)

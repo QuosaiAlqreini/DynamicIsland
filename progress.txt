@@ -75,3 +75,10 @@ Started: 2026-10-31 16:50
   - zoneinfo on Windows needs the tzdata package, and PyInstaller needs --collect-data tzdata.
   - Run command info items with CREATE_NO_WINDOW or a console flashes every refresh in the windowed exe.
 ---
+
+## 2026-11-08 - Performance fix (v1.3.1)
+- **Root cause of lag:** MediaService ran WinRT media queries synchronously on the UI thread every second (new asyncio loop each time) -> ~400 ms freezes per second; also starved the hotstring keyboard hook of the GIL.
+- **Fixes:** persistent asyncio loop on a worker thread + cached session manager; build watcher caches per-process classification (only new processes read, 3 s interval); expanded panel no longer re-lays out during the grow animation (absolute positioning, fixed final size); pill/visualizer timers skip repaints while hidden.
+- **Measured (simulated 400 ms WinRT):** worst UI freeze 407 ms -> 27 ms; frames > 50 ms 7 -> 0 over 6 s.
+- **Learnings:** never await WinRT/IO on the Qt thread; add a regression test asserting the call returns in < 50 ms.
+---

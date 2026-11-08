@@ -167,7 +167,7 @@ class MediaWidget(QWidget):
         layout.addLayout(ctrl_row)
 
     def _tick_visualizer(self):
-        if self.media_info.get("is_playing", False):
+        if self.media_info.get("is_playing", False) and self.isVisible():
             self.visualizer_phase = (self.visualizer_phase + 0.3) % (2 * math.pi)
             self.update()
 

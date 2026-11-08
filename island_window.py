@@ -127,16 +127,15 @@ class DynamicIslandWindow(QWidget):
             self.taskbar_service.set_autohide(True)
 
     def _build_ui(self):
-        self.main_layout = QVBoxLayout(self)
-        self.main_layout.setContentsMargins(4, 4, 4, 4)
-        self.main_layout.setSpacing(0)
+        # No top-level layout: the pill and the expanded panel are positioned
+        # manually (see resizeEvent) so the grow/shrink animation never forces
+        # the heavy expanded panel to re-layout on every frame.
 
         # 1. Idle Pill Widget (Visible when collapsed)
         self.idle_pill = IdlePillWidget(self.theme, self, info_service=self.info_service)
         self.idle_pill.set_slots(self.config.get("pill_left", "ai_dot"),
                                  self.config.get("pill_center", "clock"),
                                  self.config.get("pill_right", "battery_icon"))
-        self.main_layout.addWidget(self.idle_pill)
 
         # 2. Expanded Container (Visible when expanded)
         self.expanded_container = QWidget(self)
@@ -178,7 +177,7 @@ class DynamicIslandWindow(QWidget):
         self._rebuild_nav()
         self.exp_layout.addLayout(self.nav_row)
 
-        self.main_layout.addWidget(self.expanded_container)
+        self.expanded_container.setGeometry(4, 4, self.expanded_w - 8, self.expanded_h - 8)
         self.expanded_container.hide()
 
     def _style_nav(self):
@@ -631,6 +630,14 @@ class DynamicIslandWindow(QWidget):
             return
         self._reposition_compact()
         self.show()
+
+    def resizeEvent(self, event):
+        # Pill follows the window; the expanded panel keeps its final size and is
+        # simply revealed/clipped by the window while it animates.
+        self.idle_pill.setGeometry(4, 4, max(0, self.width() - 8), max(0, self.height() - 8))
+        cw = self.expanded_w - 8
+        self.expanded_container.setGeometry(int((self.width() - cw) / 2), 4, cw, self.expanded_h - 8)
+        super().resizeEvent(event)
 
     def _animate_to(self, target_rect, on_done=None):
         self.anim = QPropertyAnimation(self, b"geometry")

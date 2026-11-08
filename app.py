@@ -84,7 +84,7 @@ def main():
     taskbar_service = TaskbarService()
     clipboard_service = ClipboardService()
     timer_service = FocusTimerService()
-    build_service = BuildWatchService(interval_ms=2000)
+    build_service = BuildWatchService(interval_ms=3000)
     hotkey_service = HotkeyService(app)
     automation_service = AutomationService(hotkey_service, clipboard_service=clipboard_service)
 

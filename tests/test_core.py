@@ -146,3 +146,23 @@ def test_autohide_tuck_and_reveal(qapp):
 def test_fullscreen_check_does_not_crash():
     from services import win_input
     assert win_input.fullscreen_app_active(None) in (True, False)
+
+
+def test_media_polling_never_blocks_ui_thread(qapp, monkeypatch):
+    """Regression: Windows media calls used to run on the UI thread (~400ms freezes)."""
+    import types
+    import services.media_service as ms
+
+    class Mgr:
+        @staticmethod
+        async def request_async():
+            time.sleep(0.3)  # slow WinRT call
+            return types.SimpleNamespace(get_current_session=lambda: None)
+    fake = types.SimpleNamespace(GlobalSystemMediaTransportControlsSessionManager=Mgr)
+    monkeypatch.setattr(ms, "HAS_WINSDK", True)
+    monkeypatch.setattr(ms, "wmc", fake)
+    svc = ms.MediaService()
+    start = time.perf_counter()
+    svc._poll_media()
+    svc.toggle_play_pause()
+    assert time.perf_counter() - start < 0.05

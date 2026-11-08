@@ -59,11 +59,13 @@ class BuildWatchService(QObject):
     job_finished = pyqtSignal(str, int)   # display name, duration seconds
     _scan_done = pyqtSignal(dict)
 
-    def __init__(self, interval_ms=2000, parent=None):
+    def __init__(self, interval_ms=3000, parent=None):
         super().__init__(parent)
         self.config = ConfigManager()
         self.jobs = {}
         self._scanning = False
+        self._cache = {}           # (pid, create_time) -> (pattern or None, project)
+        self._cache_patterns = None
         self._scan_done.connect(self._apply_scan)
         self.timer = QTimer(self)
         self.timer.setInterval(interval_ms)
@@ -84,30 +86,50 @@ class BuildWatchService(QObject):
         threading.Thread(target=self._scan, args=(patterns,), daemon=True).start()
 
     def _scan(self, patterns):
+        """Runs on a worker thread. Each process is classified once (by pid +
+        start time) and cached, so steady-state scans only read new processes."""
         found = {}
+        cache = self._cache
+        if patterns != self._cache_patterns:
+            cache.clear()
+            self._cache_patterns = list(patterns)
+        seen = set()
         try:
             own_pid = os.getpid()
-            for proc in psutil.process_iter(["pid", "ppid", "cmdline", "create_time"]):
+            for proc in psutil.process_iter(["pid", "ppid", "create_time"]):
                 info = proc.info
-                if info["pid"] == own_pid or not info.get("cmdline"):
+                pid = info["pid"]
+                if pid == own_pid:
                     continue
-                pattern = match_pattern(tokenize(info["cmdline"]), patterns)
-                if not pattern:
-                    continue
-                project = ""
-                try:
-                    project = os.path.basename(proc.cwd().rstrip("\\/"))
-                except (psutil.Error, OSError):
-                    pass
-                found[info["pid"]] = {
-                    "pid": info["pid"],
-                    "ppid": info.get("ppid"),
-                    "name": pattern,
-                    "project": project,
-                    "started": info.get("create_time") or time.time(),
-                }
+                key = (pid, info.get("create_time"))
+                seen.add(key)
+                if key not in cache:
+                    pattern, project = None, ""
+                    try:
+                        pattern = match_pattern(tokenize(proc.cmdline() or []), patterns)
+                        if pattern:
+                            try:
+                                project = os.path.basename(proc.cwd().rstrip("\\/"))
+                            except (psutil.Error, OSError):
+                                pass
+                    except (psutil.Error, OSError):
+                        pass
+                    cache[key] = (pattern, project)
+                pattern, project = cache[key]
+                if pattern:
+                    found[pid] = {
+                        "pid": pid,
+                        "ppid": info.get("ppid"),
+                        "name": pattern,
+                        "project": project,
+                        "started": info.get("create_time") or time.time(),
+                    }
+                time.sleep(0)  # yield the GIL so the UI thread stays smooth
         except Exception:
             pass
+        for key in list(cache):
+            if key not in seen:
+                del cache[key]
         # Keep only the outermost process of a chain (cmd -> npm -> node ...)
         roots = {pid: job for pid, job in found.items() if job["ppid"] not in found}
         self._scan_done.emit(roots)
