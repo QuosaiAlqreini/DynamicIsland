@@ -160,7 +160,7 @@ def test_media_polling_never_blocks_ui_thread(qapp, monkeypatch):
             return types.SimpleNamespace(get_current_session=lambda: None)
     fake = types.SimpleNamespace(GlobalSystemMediaTransportControlsSessionManager=Mgr)
     monkeypatch.setattr(ms, "HAS_WINSDK", True)
-    monkeypatch.setattr(ms, "wmc", fake)
+    monkeypatch.setattr(ms, "wmc", fake, raising=False)
     svc = ms.MediaService()
     start = time.perf_counter()
     svc._poll_media()
