@@ -95,14 +95,19 @@ def main():
 
     # Global hotkey: summon the island from anywhere (default Ctrl+Alt+Space)
     config = ConfigManager()
+    hotkey_problems = []   # shortcuts another app already owns: tell the user instead of failing silently
     hotkey_text = config.get("global_hotkey", "Ctrl+Alt+Space")
     if hotkey_text and hotkey_service.register(1, hotkey_text):
         hotkey_service.activated.connect(lambda hid: island.summon() if hid == 1 else None)
+    elif hotkey_text and hotkey_service.available:
+        hotkey_problems.append(f"Open island: {hotkey_text}")
 
     # Command bar (default Alt+Space)
     bar_hotkey = config.get("command_bar_hotkey", "Alt+Space")
     if bar_hotkey and hotkey_service.register(2, bar_hotkey):
         hotkey_service.activated.connect(lambda hid: island.toggle_command_bar() if hid == 2 else None)
+    elif bar_hotkey and hotkey_service.available:
+        hotkey_problems.append(f"Command bar: {bar_hotkey}")
 
     # AutoHotkey-style automations: user hotkeys + hotstrings
     automation_service.apply()
@@ -196,6 +201,17 @@ def main():
     # Timer / build completion toasts
     island.notify.connect(
         lambda title, msg: tray_icon.showMessage(title, msg, QSystemTrayIcon.MessageIcon.Information, 5000))
+
+    # Shortcuts that another program already uses (e.g. another app's quick-open key)
+    hotkey_problems += [f"{m.get('name', 'Automation')}: {hk}" for hk, m in
+                        ((hk, next((m for m in automation_service.macros if m.get("hotkey") == hk), {}))
+                         for hk in automation_service.status)]
+    if hotkey_problems and not selftest:
+        QTimer.singleShot(1500, lambda: tray_icon.showMessage(
+            "⚠️ Shortcut already taken",
+            "Another program uses:\n" + "\n".join(hotkey_problems[:4]) +
+            "\nPick a different one in Preferences or ⌨️ Keys → Edit.",
+            QSystemTrayIcon.MessageIcon.Warning, 10000))
 
     # Start services
     media_service.start()
