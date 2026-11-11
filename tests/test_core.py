@@ -1,3 +1,4 @@
+import os
 import sys
 import time
 
@@ -8,6 +9,7 @@ from services.build_watch_service import match_pattern, tokenize
 from services.hotkey_service import parse_hotkey
 from services.hotstring_engine import HotstringMatcher
 
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 windows_only = pytest.mark.skipif(sys.platform != "win32", reason="Windows only")
 
 
@@ -232,12 +234,36 @@ def test_position_offset(qapp):
     ConfigManager().set("island_offset_x", 0)
 
 
+_STYLE_PROBE = r"""
+import os, sys
+sys.path.insert(0, os.getcwd())
+from PyQt6.QtWidgets import QApplication
+app = QApplication([])
+from config import ConfigManager
+ConfigManager().set("through_mode", True)
+from services import win_input
+from services.media_service import MediaService
+from services.system_service import SystemMonitorService
+from services.ai_service import AIService
+from services.taskbar_service import TaskbarService
+from island_window import DynamicIslandWindow
+w = DynamicIslandWindow(MediaService(), SystemMonitorService(), AIService(), TaskbarService())
+w.show(); app.processEvents()
+style = lambda: win_input.user32.GetWindowLongW(int(w.winId()), -20)
+folded = style()
+w.expand(); app.processEvents()
+opened = style()
+w.collapse(); app.processEvents()
+refolded = style()
+print("STYLES", folded & 0x20, opened & 0x20, refolded & 0x20)
+"""
+
+
 @windows_only
-def test_click_through_style_is_applied(qapp):
-    import ctypes
-    w = _through_island(qapp)
-    style = ctypes.windll.user32.GetWindowLongW(int(w.winId()), -20)
-    assert style & 0x20           # WS_EX_TRANSPARENT while folded
-    w.expand()
-    style = ctypes.windll.user32.GetWindowLongW(int(w.winId()), -20)
-    assert not style & 0x20       # interactive while open
+def test_click_through_style_is_applied_on_real_window():
+    """Needs a real HWND, so run with the native Qt platform in a subprocess."""
+    import subprocess
+    env = dict(os.environ, QT_QPA_PLATFORM="windows")
+    out = subprocess.run([sys.executable, "-c", _STYLE_PROBE], capture_output=True, text=True,
+                         timeout=60, env=env, cwd=ROOT)
+    assert "STYLES 32 0 32" in out.stdout, out.stdout + out.stderr
