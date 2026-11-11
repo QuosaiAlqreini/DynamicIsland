@@ -324,7 +324,7 @@
         "Prayer times computed locally within 3 min of published Riyadh times; high-latitude fallback",
         "Pomodoro rounds auto-advance and can be skipped",
         "LRCLIB synced lyrics fetched off the UI thread; position interpolated",
-        "Master volume via pycaw on a worker thread with key fallback",
+        "Master volume via Core Audio (ctypes) on a worker thread with key fallback",
         "Command bar: apps, calculator (safe AST eval), timers, tasks, notes, text tools, commands, web",
         "Wheel/arrow paging; hide for listed apps"
       ],

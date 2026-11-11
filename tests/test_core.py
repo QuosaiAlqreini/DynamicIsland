@@ -247,15 +247,20 @@ from services.system_service import SystemMonitorService
 from services.ai_service import AIService
 from services.taskbar_service import TaskbarService
 from island_window import DynamicIslandWindow
+import faulthandler; faulthandler.enable()
 w = DynamicIslandWindow(MediaService(), SystemMonitorService(), AIService(), TaskbarService())
 w.show(); app.processEvents()
+import time
+for _ in range(30):            # give background threads (volume, media) time to run
+    app.processEvents(); time.sleep(0.05)
+print("VOLUME", w.volume_service.available, w.volume_service.percent, flush=True)
 style = lambda: win_input.user32.GetWindowLongW(int(w.winId()), -20)
 folded = style()
 w.expand(); app.processEvents()
 opened = style()
 w.collapse(); app.processEvents()
 refolded = style()
-print("STYLES", folded & 0x20, opened & 0x20, refolded & 0x20)
+print("STYLES", folded & 0x20, opened & 0x20, refolded & 0x20, flush=True)
 """
 
 
@@ -267,6 +272,8 @@ def test_click_through_style_is_applied_on_real_window():
     out = subprocess.run([sys.executable, "-c", _STYLE_PROBE], capture_output=True, text=True,
                          timeout=60, env=env, cwd=ROOT)
     assert "STYLES 32 0 32" in out.stdout, out.stdout + out.stderr
+    assert out.returncode == 0, f"crashed with {out.returncode:#x}: " + out.stdout + out.stderr
+    print(out.stdout)
 
 
 # ------------------------------------- tasks, prayer, water, lyrics, commands

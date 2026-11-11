@@ -4,4 +4,3 @@ pywin32>=306
 requests>=2.31.0
 winsdk>=1.0.0b10
 tzdata>=2024.1
-pycaw>=20240210
