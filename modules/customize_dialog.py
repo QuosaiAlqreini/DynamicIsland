@@ -22,6 +22,7 @@ class PillPreview(QWidget):
         super().__init__(parent)
         self.theme = theme
         self.pill = IdlePillWidget(theme, self, info_service=info_service)
+        self.notch = False
         self.setFixedHeight(44)
 
     def set_width(self, w):
@@ -42,7 +43,11 @@ class PillPreview(QWidget):
         g.setColorAt(1, QColor(self.theme["pill_gradient_end"]))
         p.setBrush(QBrush(g))
         p.setPen(QPen(QColor(self.theme["border_color"]), 1.2))
-        p.drawRoundedRect(1, 1, w - 2, h - 2, (h - 2) / 2, (h - 2) / 2)
+        if self.notch:
+            from island_window import notch_path
+            p.drawPath(notch_path(w, h))
+        else:
+            p.drawRoundedRect(1, 1, w - 2, h - 2, (h - 2) / 2, (h - 2) / 2)
 
 
 class InfoItemEditor(QDialog):
@@ -207,6 +212,9 @@ class CustomizeDialog(QDialog):
         # Preview uses the items being edited, so temporarily expose them to the info service
         self.preview.set_width(self.width_spin.value())
         self.preview.pill.set_slots(*self._current_slots())
+        if hasattr(self, "rb_notch"):
+            self.preview.notch = self.rb_notch.isChecked()
+            self.preview.update()
         theme_key = self.theme_combo.currentData() if hasattr(self, "theme_combo") else None
         if theme_key:
             self.preview.set_theme(get_theme(theme_key))
@@ -392,9 +400,19 @@ class CustomizeDialog(QDialog):
         self.chk_lyrics = QCheckBox("Show synced song lyrics (looks up the song title and artist on lrclib.net)")
         self.chk_lyrics.setChecked(self.config.get("lyrics_enabled", True))
         lay.addWidget(self.chk_lyrics)
-        self.chk_notch = QCheckBox("Notch mode: sit flush against the top edge")
-        self.chk_notch.setChecked(self.config.get("notch_mode", False))
-        lay.addWidget(self.chk_notch)
+        srow = QHBoxLayout()
+        srow.addWidget(QLabel("Style"))
+        self.rb_island = QRadioButton("🏝️ Floating island")
+        self.rb_notch = QRadioButton("📱 Notch (attached to the top edge)")
+        style_group = QButtonGroup(w)
+        style_group.addButton(self.rb_island)
+        style_group.addButton(self.rb_notch)
+        (self.rb_notch if self.config.get("notch_mode", False) else self.rb_island).setChecked(True)
+        self.rb_notch.toggled.connect(self._update_preview)
+        srow.addWidget(self.rb_island)
+        srow.addWidget(self.rb_notch)
+        srow.addStretch()
+        lay.addLayout(srow)
         trow = QHBoxLayout()
         trow.addWidget(QLabel("Theme"))
         self.theme_combo = QComboBox()
@@ -419,6 +437,7 @@ class CustomizeDialog(QDialog):
             key = self.tab_list.item(i).data(Qt.ItemDataRole.UserRole)
             self._set_tab_checked(key, key in DEFAULT_TABS)
         self.rb_always.setChecked(True)
+        self.rb_island.setChecked(True)
         self.chk_fullscreen.setChecked(True)
         self.chk_through.setChecked(True)
         self.open_combo.setCurrentIndex(0)
@@ -447,7 +466,7 @@ class CustomizeDialog(QDialog):
         c.set("island_offset_x", self.offset_spin.value())
         c.set("expand_on_hover", self.chk_hover.isChecked())
         c.set("click_to_expand", self.chk_click.isChecked())
-        c.set("notch_mode", self.chk_notch.isChecked())
+        c.set("notch_mode", self.rb_notch.isChecked())
         c.set("theme", self.theme_combo.currentData())
         self.info.save_items(self.items)
         self.accept()

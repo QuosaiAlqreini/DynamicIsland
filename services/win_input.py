@@ -365,7 +365,10 @@ def app_launch_command():
 
 
 # -------------------------------------------------------------- Fullscreen
-_SHELL_CLASSES = {"Progman", "WorkerW", "Shell_TrayWnd", "Shell_SecondaryTrayWnd"}
+_SHELL_CLASSES = {"Progman", "WorkerW", "Shell_TrayWnd", "Shell_SecondaryTrayWnd",
+                  "XamlExplorerHostIslandWindow", "MultitaskingViewFrame", "ForegroundStaging",
+                  "Windows.UI.Core.CoreWindow", "TaskListThumbnailWnd"}
+QUNS_BUSY, QUNS_D3D_FULLSCREEN, QUNS_PRESENTATION = 2, 3, 4
 
 
 def _class_name(hwnd):
@@ -374,9 +377,21 @@ def _class_name(hwnd):
     return buf.value
 
 
+def looks_fullscreen(win, mon, zoomed, has_caption, tolerance=2):
+    """Pure decision used by fullscreen_app_active (rects are (l, t, r, b)).
+
+    A window that covers its monitor is full screen, except an ordinary
+    maximized window with a title bar (that can cover the monitor when the
+    taskbar auto-hides).
+    """
+    covers = (win[0] <= mon[0] + tolerance and win[1] <= mon[1] + tolerance
+              and win[2] >= mon[2] - tolerance and win[3] >= mon[3] - tolerance)
+    return covers and not (zoomed and has_caption)
+
+
 def fullscreen_app_active(island_hwnd=None):
-    """True when the foreground window covers its whole monitor (games, videos,
-    presentations, F11 browsers) on the same monitor as the island."""
+    """True when a full-screen app (game, video, F11 browser, slideshow) is in
+    front on the same monitor as the island."""
     if not IS_WINDOWS:
         return False
     try:
@@ -394,14 +409,14 @@ def fullscreen_app_active(island_hwnd=None):
         r = wintypes.RECT()
         user32.GetWindowRect(hwnd, ctypes.byref(r))
         m = info.rcMonitor
-        covers = r.left <= m.left and r.top <= m.top and r.right >= m.right and r.bottom >= m.bottom
-        has_title_bar = (user32.GetWindowLongW(hwnd, -16) & 0x00C00000) == 0x00C00000  # WS_CAPTION
-        if covers and not has_title_bar:
+        has_caption = (user32.GetWindowLongW(hwnd, -16) & 0x00C00000) == 0x00C00000  # WS_CAPTION
+        if looks_fullscreen((r.left, r.top, r.right, r.bottom), (m.left, m.top, m.right, m.bottom),
+                            bool(user32.IsZoomed(hwnd)), has_caption):
             return True
-        # Exclusive-mode Direct3D games / presentation mode
+        # Ask Windows too: exclusive-mode games, slideshows and other full-screen apps
         state = ctypes.c_int(0)
         if ctypes.windll.shell32.SHQueryUserNotificationState(ctypes.byref(state)) == 0:
-            return state.value in (3, 4)  # QUNS_RUNNING_D3D_FULL_SCREEN, QUNS_PRESENTATION_MODE
+            return state.value in (QUNS_BUSY, QUNS_D3D_FULLSCREEN, QUNS_PRESENTATION)
     except Exception:
         pass
     return False

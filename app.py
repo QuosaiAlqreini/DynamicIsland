@@ -141,8 +141,10 @@ def main():
     def toggle_island():
         island.set_user_hidden(not island.user_hidden)
 
-    show_action = tray_menu.addAction(f"👁️ Toggle Island" + (f"\t{hotkey_text}" if hotkey_service.available else ""))
+    show_action = tray_menu.addAction("🙈 Hide Island")
     show_action.triggered.connect(toggle_island)
+    tray_menu.aboutToShow.connect(lambda: show_action.setText(
+        "👁️ Show Island" if island.user_hidden else "🙈 Hide Island"))
 
     # Settings & Accounts Action
     settings_action = tray_menu.addAction("⚙️ Preferences & AI Accounts")

@@ -50,6 +50,28 @@ TAB_KEY_TO_INDEX = {"media": TAB_MEDIA, "system": TAB_SYSTEM, "ai": TAB_AI, "too
 TAB_NAMES = dict(TAB_KEY_TO_INDEX, sys=TAB_SYSTEM, clipboard=TAB_SHELF,
                  timer=TAB_FOCUS, automations=TAB_KEYS, todo=TAB_TASKS, water=TAB_DAY,
                  prayer=TAB_DAY)
+NOTCH_SHOULDER = 10       # width of the curved "ears" joining the notch to the screen edge
+
+
+def notch_path(w, h, expanded=False):
+    """Notch silhouette: flat top on the screen edge, curved shoulders, rounded bottom."""
+    from PyQt6.QtGui import QPainterPath
+    e = NOTCH_SHOULDER
+    r = min(22 if expanded else 14, (h - e) / 2, (w - 2 * e) / 2)
+    p = QPainterPath()
+    p.moveTo(0, 0)
+    p.lineTo(w, 0)
+    p.quadTo(w - e, 0, w - e, e)                       # right shoulder
+    p.lineTo(w - e, h - 1 - r)
+    p.quadTo(w - e, h - 1, w - e - r, h - 1)           # bottom-right corner
+    p.lineTo(e + r, h - 1)
+    p.quadTo(e, h - 1, e, h - 1 - r)                   # bottom-left corner
+    p.lineTo(e, e)
+    p.quadTo(e, 0, 0, 0)                               # left shoulder
+    p.closeSubpath()
+    return p
+
+
 MAX_LABELED_TABS = 8          # more visible tabs than this -> icon-only nav buttons
 AUTOHIDE_DELAY_S = 0.7        # cursor away this long -> tuck the island back up
 CLICK_MOVE_THRESHOLD = 4
@@ -277,6 +299,7 @@ class DynamicIslandWindow(QWidget):
             "focus": lambda minutes: self.timer_service.start(minutes, "Focus"),
             "collapse": self.collapse,
             "through_toggle": self.toggle_through_mode,
+            "island_visibility": self.toggle_visibility,
             "command_bar": self.toggle_command_bar,
             "add_task": lambda phrase="": (self.tasks_service.add(phrase) if phrase.strip()
                                            else self.open_tab_by_key("tasks")),
@@ -771,6 +794,21 @@ class DynamicIslandWindow(QWidget):
             self._dwell_since = None
             self.expand()
 
+    def toggle_visibility(self):
+        """Manual show / hide (hotkey, tray, right-click menu)."""
+        self.set_user_hidden(not self.user_hidden)
+        if not self.user_hidden:
+            self.idle_pill.flash("👋 Back", self.theme["accent"], 1200)
+
+    def set_style(self, notch):
+        self.notch_mode = bool(notch)
+        self.config.set("notch_mode", self.notch_mode)
+        if self.is_expanded:
+            self.collapse()
+        else:
+            self._reposition_compact()
+        self.update()
+
     def set_user_hidden(self, hidden):
         """Tray 'Toggle Island'."""
         self.user_hidden = hidden
@@ -843,12 +881,16 @@ class DynamicIslandWindow(QWidget):
         hwnd = int(self.winId()) if self.windowHandle() else None
         apps = [a.lower() for a in self.config.get("hide_for_apps", []) if a]
         if win_input.fullscreen_app_active(hwnd) or (apps and win_input.foreground_process_name() in apps):
+            self._fs_clear_ticks = 0
             if not self.fullscreen_hidden:
                 self.fullscreen_hidden = True
                 self.collapse()
                 self.hide()
         elif self.fullscreen_hidden:
-            self._leave_fullscreen_hide()
+            # Come back only after a moment, so switching tabs in a game doesn't flicker it
+            self._fs_clear_ticks = getattr(self, "_fs_clear_ticks", 0) + 1
+            if self._fs_clear_ticks >= 2:
+                self._leave_fullscreen_hide()
 
     def _leave_fullscreen_hide(self):
         self.fullscreen_hidden = False
@@ -992,10 +1034,17 @@ class DynamicIslandWindow(QWidget):
             action.triggered.connect(lambda checked, k=key: self.set_theme(k))
 
         # Notch Mode Toggle
-        notch_action = menu.addAction("📌 Toggle Notch Mode (Top Flush)")
-        notch_action.setCheckable(True)
-        notch_action.setChecked(self.notch_mode)
-        notch_action.triggered.connect(self._toggle_notch_mode)
+        style_menu = menu.addMenu("📱 Style: Island or Notch")
+        island_style = style_menu.addAction("🏝️ Floating island")
+        island_style.setCheckable(True)
+        island_style.setChecked(not self.notch_mode)
+        island_style.triggered.connect(lambda: self.set_style(False))
+        notch_style = style_menu.addAction("📱 Notch (attached to the top edge)")
+        notch_style.setCheckable(True)
+        notch_style.setChecked(self.notch_mode)
+        notch_style.triggered.connect(lambda: self.set_style(True))
+        menu.addAction("🙈 Hide Island (show again from tray or hotkey)").triggered.connect(
+            lambda: self.set_user_hidden(True))
 
         # Quick reach actions
         menu.addAction("📥 Open Shelf").triggered.connect(lambda: self.open_tab(TAB_SHELF))
@@ -1091,5 +1140,8 @@ class DynamicIslandWindow(QWidget):
         border_pen = QPen(QColor(self.theme["border_color"]), 1.2)
         painter.setPen(border_pen)
 
-        # Draw rounded pill shape
-        painter.drawRoundedRect(1, 1, w - 2, h - 2, radius, radius)
+        if self.notch_mode:
+            painter.drawPath(notch_path(w, h, self.is_expanded))
+        else:
+            # Draw rounded pill shape
+            painter.drawRoundedRect(1, 1, w - 2, h - 2, radius, radius)

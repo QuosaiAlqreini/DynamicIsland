@@ -105,6 +105,7 @@ DEFAULT_CONFIG = {
         {"name": "Brightness down", "hotkey": "Ctrl+Alt+PgDown", "action": "bright_down", "arg": "10", "enabled": True},
         {"name": "Dark mode", "hotkey": "Ctrl+Alt+D", "action": "dark_mode", "arg": "", "enabled": True},
         {"name": "Click-through", "hotkey": "Ctrl+Alt+G", "action": "through_toggle", "arg": "", "enabled": True},
+        {"name": "Show / hide island", "hotkey": "Ctrl+Alt+H", "action": "island_visibility", "arg": "", "enabled": True},
         {"name": "Screenshot", "hotkey": "", "action": "screenshot", "arg": "", "enabled": True},
         {"name": "Lock", "hotkey": "", "action": "lock", "arg": "", "enabled": True}
     ],

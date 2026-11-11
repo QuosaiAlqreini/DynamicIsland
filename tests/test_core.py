@@ -381,3 +381,48 @@ def test_new_tabs_and_wheel_paging(qapp):
     w._cycle_tab(1)
     assert w.stack.currentIndex() == TAB_TASKS
     w.config.set("tabs_visible", ["media", "shelf", "tasks", "notes", "focus", "day", "keys", "ai", "system", "tools"])
+
+
+# --------------------------------------------- full screen, show/hide, notch
+def test_fullscreen_decision():
+    from services.win_input import looks_fullscreen
+    mon = (0, 0, 1920, 1080)
+    assert looks_fullscreen((0, 0, 1920, 1080), mon, zoomed=False, has_caption=False)       # game / F11
+    assert looks_fullscreen((0, 0, 1920, 1080), mon, zoomed=False, has_caption=True)        # app keeps caption style
+    assert looks_fullscreen((-8, -8, 1928, 1088), mon, zoomed=True, has_caption=False)      # captionless maximized player
+    assert not looks_fullscreen((-8, -8, 1928, 1088), mon, zoomed=True, has_caption=True)   # normal maximized window
+    assert not looks_fullscreen((0, 0, 1920, 1040), mon, zoomed=False, has_caption=False)   # leaves the taskbar visible
+    assert not looks_fullscreen((100, 100, 900, 700), mon, zoomed=False, has_caption=True)
+
+
+def test_manual_show_hide_and_style(qapp):
+    w = _island()
+    w.show()
+    w.toggle_visibility()
+    assert w.user_hidden and not w.isVisible()
+    w.toggle_visibility()
+    assert not w.user_hidden and w.isVisible()
+    w.set_user_hidden(True)
+    w.summon()                                   # the hotkey always brings it back
+    assert w.isVisible() and not w.user_hidden
+    w.collapse()
+    w.set_style(True)
+    assert w.notch_mode and w.y() == w._get_screen_geometry().y()
+    w.grab()                                     # notch painting must not crash
+    w.set_style(False)
+    assert not w.notch_mode
+
+
+def test_new_default_hotkeys_reach_existing_users(qapp):
+    from config import ConfigManager
+    from services.automation_service import AutomationService
+    c = ConfigManager()
+    c.set("automations", [{"name": "Mine", "hotkey": "Ctrl+Alt+H", "action": "lock", "arg": "", "enabled": True}])
+    c.set("migrated_default_macros", [])
+    svc = AutomationService(None)
+    by_action = {m["action"]: m for m in svc.macros}
+    assert by_action["island_visibility"]["hotkey"] == ""          # didn't steal the user's Ctrl+Alt+H
+    assert by_action["through_toggle"]["hotkey"] == "Ctrl+Alt+G"
+    svc.save_macros([m for m in svc.macros if m["action"] != "through_toggle"])
+    AutomationService(None)                                        # deleted defaults are not re-added
+    assert not any(m["action"] == "through_toggle" for m in ConfigManager().get("automations"))

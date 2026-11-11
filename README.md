@@ -237,6 +237,8 @@ To achieve the clean macOS look without duplicated taskbar icons:
 | **Click-through on / off** | `Ctrl+Alt+G`, or tray ➔ `👻 Click-Through Pill` |
 | **Hide at the top** | Right-click ➔ `🫥 Hide at Top`, then touch the top edge to show it |
 | **Jump to a tab** | `Ctrl+1..9`, `Ctrl+Tab` to cycle, `Esc` to close |
+| **Show / hide the island** | `Ctrl+Alt+H`, tray ➔ `🙈 Hide Island` / `👁️ Show Island`, or right-click ➔ `🙈 Hide Island` |
+| **Island or notch look** | Right-click ➔ `📱 Style: Island or Notch`, or Customize ➔ Visibility ➔ Style |
 | **Command bar** | `Alt+Space` |
 | **Add a task / reminder** | `✅ Tasks` tab, or command bar: `remind Call mom at 17:30` |
 | **Switch pages** | Mouse wheel or `←` `→` while the island is open |

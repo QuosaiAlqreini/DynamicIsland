@@ -55,6 +55,7 @@ ACTIONS = [
     ("focus", "Island: start focus timer", "Island", "Minutes (default 25)"),
     ("see_screen", "Island: AI look at my screen", "Island", None),
     ("through_toggle", "Island: click-through pill on / off", "Island", None),
+    ("island_visibility", "Island: show / hide", "Island", None),
     ("command_bar", "Island: command bar", "Island", None),
     ("add_task", "Island: add task / reminder", "Island", "Task phrase, e.g. Stretch in 30m (empty = open Tasks)"),
     ("water", "Island: log a glass of water", "Island", None),
@@ -216,10 +217,36 @@ class AutomationService(QObject):
         self.keep_awake = False
         self.status = {}        # hotkey text -> error message
         self._id_to_macro = {}
+        self._add_new_default_macros()
         self.engine = HotstringEngine(self)
         self.engine.expand.connect(self._on_hotstring)
         if self.hotkeys is not None:
             self.hotkeys.activated.connect(self._on_hotkey)
+
+    # Default hotkeys added in later versions: give them to existing users once
+    NEW_DEFAULTS = [
+        {"name": "Show / hide island", "hotkey": "Ctrl+Alt+H", "action": "island_visibility", "arg": "", "enabled": True},
+        {"name": "Click-through", "hotkey": "Ctrl+Alt+G", "action": "through_toggle", "arg": "", "enabled": True},
+    ]
+
+    def _add_new_default_macros(self):
+        done = list(self.config.get("migrated_default_macros", []) or [])
+        macros = self.macros
+        added = False
+        for default in self.NEW_DEFAULTS:
+            if default["action"] in done:
+                continue
+            done.append(default["action"])
+            if any(m.get("action") == default["action"] for m in macros):
+                continue
+            macro = dict(default)
+            if any((m.get("hotkey") or "").lower() == macro["hotkey"].lower() for m in macros):
+                macro["hotkey"] = ""   # don't steal a hotkey the user already uses
+            macros.append(macro)
+            added = True
+        if added:
+            self.config.set("automations", macros)
+        self.config.set("migrated_default_macros", done)
 
     # ------------------------------------------------------------- data
     @property
@@ -409,7 +436,8 @@ class AutomationService(QObject):
             self.island_actions.get(action, lambda *_: None)(arg) if action == "add_task" else \
                 self.island_actions.get(action, lambda: None)()
             return True
-        if action in ("island_toggle", "quick_note", "see_screen", "through_toggle", "command_bar"):
+        if action in ("island_toggle", "quick_note", "see_screen", "through_toggle", "command_bar",
+                      "island_visibility"):
             self.island_actions.get(action, lambda: None)()
             return True
         print(f"[automation] Unknown action: {action}")
