@@ -2,16 +2,27 @@
 title Dynamic Island for Windows
 cd /d "%~dp0"
 
-echo ==========================================================
-echo  Starting Dynamic Island for Windows
-echo  (Antigravity & Claude Code Edition)
-echo ==========================================================
-echo.
+where python >nul 2>nul
+if errorlevel 1 (
+    echo Python was not found. Install it with:
+    echo     winget install -e --id Python.Python.3.12
+    echo then open a new terminal and run this file again.
+    pause
+    exit /b 1
+)
 
-python -m pip install -r requirements.txt --quiet
-start pythonw app.py
+echo Updating to the latest version (skipped if this is not a git copy)...
+git pull --ff-only 2>nul
 
-echo Dynamic Island is running in the background!
-echo Look at the top center of your screen or check the system tray icon.
-timeout /t 3 >nul
-exit
+echo Checking dependencies...
+python -m pip install -r requirements.txt --quiet --disable-pip-version-check
+if errorlevel 1 (
+    echo Could not install dependencies. See the message above.
+    pause
+    exit /b 1
+)
+
+start "" pythonw app.py
+echo Dynamic Island is running. Look at the top of your screen or the tray icon.
+timeout /t 2 >nul
+exit /b 0

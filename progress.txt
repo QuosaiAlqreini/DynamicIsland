@@ -82,3 +82,8 @@ Started: 2026-10-31 16:50
 - **Measured (simulated 400 ms WinRT):** worst UI freeze 407 ms -> 27 ms; frames > 50 ms 7 -> 0 over 6 s.
 - **Learnings:** never await WinRT/IO on the Qt thread; add a regression test asserting the call returns in < 50 ms.
 ---
+
+## 2026-11-11 - US-022 (Click-through pill, position, v1.4.0)
+- **Implemented:** through mode (pill ignores the mouse, cursor polled at 50 ms; edge/dwell/manual open; click blocks opening; drag-in override), island_offset_x, hotstrings now opt-in, selftest stall measurement, sturdier run.bat (auto git pull).
+- **Learnings:** a click-through window gets no enter/leave/drag events, so drive everything from a cursor-polling state machine and keep it a pure step function (pos, button, time) for tests; re-apply WS_EX_TRANSPARENT in showEvent.
+---

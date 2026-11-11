@@ -82,6 +82,13 @@ class DynamicIslandWindow(QWidget):
         self.user_hidden = False       # hidden from the tray menu
         self.summoned = False          # opened via hotkey/tray: ignore fullscreen until closed
         self._away_since = None
+        # Click-through ("through mode") state
+        self._passthrough = False      # window currently ignores the mouse
+        self._zone_inside = False
+        self._dwell_since = None
+        self._dwell_blocked = False    # a click happened under the pill: don't pop open
+        self._drag_in_since = None     # something is being dragged onto the pill
+        self._drop_override = False
 
         # Dimensions
         self.base_compact_w = self.config.get("compact_width", 210)
@@ -248,6 +255,7 @@ class DynamicIslandWindow(QWidget):
             "open_tab": lambda name: self.open_tab(TAB_NAMES.get(name.strip().lower(), TAB_MEDIA)),
             "focus": lambda minutes: self.timer_service.start(minutes, "Focus"),
             "collapse": self.collapse,
+            "through_toggle": self.toggle_through_mode,
         }
 
     def open_customize(self):
@@ -495,8 +503,10 @@ class DynamicIslandWindow(QWidget):
         return self._get_screen_geometry().y() - height - 4
 
     def _centered_x(self, width):
+        """X for a window of `width`, honoring the user's shift along the top edge."""
         geom = self._get_screen_geometry()
-        return int(geom.x() + (geom.width() - width) / 2)
+        x = int(geom.x() + (geom.width() - width) / 2 + int(self.config.get("island_offset_x", 0)))
+        return max(geom.x() + 4, min(x, geom.x() + geom.width() - width - 4))
 
     def _reposition_compact(self):
         y = self._hidden_y(self.compact_h) if self.tucked else self._rest_y()
@@ -508,6 +518,7 @@ class DynamicIslandWindow(QWidget):
         if self.tucked:
             self._reveal(animate=False)
         self.is_expanded = True
+        self._update_passthrough()
         self.idle_pill.hide()
         self.expanded_container.show()
         self._animate_to(QRect(self._centered_x(self.expanded_w), self._rest_y(),
@@ -518,6 +529,9 @@ class DynamicIslandWindow(QWidget):
             return
         self.is_expanded = False
         self.summoned = False
+        self._zone_inside = True    # don't treat the cursor as "just arrived"
+        self._dwell_blocked = True  # ...and don't reopen until it has left
+        self._update_passthrough()
         self.expanded_container.hide()
         self.idle_pill.show()
         self._animate_to(QRect(self._centered_x(self.compact_w), self._rest_y(),
@@ -529,6 +543,10 @@ class DynamicIslandWindow(QWidget):
         self.reveal_timer = QTimer(self)
         self.reveal_timer.setInterval(80)
         self.reveal_timer.timeout.connect(self._autohide_tick)
+        # Through mode: follow the cursor without ever receiving mouse events
+        self.through_timer = QTimer(self)
+        self.through_timer.setInterval(50)
+        self.through_timer.timeout.connect(self._through_tick)
         # Full-screen apps: check what is in front
         self.fullscreen_timer = QTimer(self)
         self.fullscreen_timer.setInterval(700)
@@ -546,6 +564,108 @@ class DynamicIslandWindow(QWidget):
             self.reveal_timer.stop()
             if self.tucked:
                 self._reveal()
+        if self._through_enabled():
+            self.through_timer.start()
+        else:
+            self.through_timer.stop()
+            self.setWindowOpacity(1.0)
+        self._update_passthrough()
+
+    # ------------------------------------------------------ Through mode
+    def _through_enabled(self):
+        return bool(self.config.get("through_mode", True))
+
+    def toggle_through_mode(self, on=None):
+        on = (not self._through_enabled()) if on is None else bool(on)
+        self.config.set("through_mode", on)
+        self._apply_visibility_mode()
+        self.idle_pill.flash("👻 Clicks pass through me" if on else "🖱️ Pill is clickable again",
+                             self.theme["accent"], 2200)
+
+    def _update_passthrough(self):
+        """The folded pill ignores the mouse in through mode; the open island never does."""
+        want = (self._through_enabled() and not self.is_expanded
+                and not self._drop_override and not self.is_dragging)
+        if want != self._passthrough:
+            self._passthrough = want
+            if self.windowHandle():
+                win_input.set_click_through(int(self.winId()), want)
+            if not want:
+                self.setWindowOpacity(1.0)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        # The native window may be new: re-apply the click-through style
+        if self.windowHandle():
+            win_input.set_click_through(int(self.winId()), self._passthrough)
+
+    def _hot_zone(self):
+        """Pill area plus the strip between it and the top edge of the screen."""
+        g = self.geometry()
+        top = self._get_screen_geometry().y()
+        return QRect(g.x(), top, g.width(), g.bottom() - top + 1)
+
+    def _through_tick(self):
+        self._through_step(QCursor.pos(), win_input.mouse_button_down(), time.monotonic())
+
+    def _through_step(self, pos, button_down, now):
+        """One step of the through-mode state machine (separate so tests can drive it)."""
+        if self.is_expanded:
+            # We may never get a leaveEvent if we opened under a still cursor
+            if (not self.geometry().adjusted(-6, -6, 6, 6).contains(pos) and not button_down
+                    and not self._should_stay_open() and not self.leave_timer.isActive()
+                    and not self.summoned):
+                self.leave_timer.start(self.config.get("collapse_delay_ms", 300))
+            return
+        if not self.isVisible() or self.tucked:
+            return
+        inside = self._hot_zone().contains(pos)
+        if not inside:
+            self._zone_inside = False
+            self._dwell_since = None
+            self._drag_in_since = None
+            self._dwell_blocked = False
+            if self._drop_override and not button_down:
+                self._drop_override = False
+            self._update_passthrough()
+            if self.windowOpacity() != 1.0:
+                self.setWindowOpacity(1.0)
+            return
+
+        entered = not self._zone_inside
+        self._zone_inside = True
+        if entered:
+            # Arriving with a button held = dragging something towards the island
+            self._drag_in_since = now if button_down else None
+        if not self._drop_override:
+            self.setWindowOpacity(float(self.config.get("through_opacity", 0.35)))
+            if self.windowHandle():  # re-assert in case the style was reset
+                win_input.set_click_through(int(self.winId()), True)
+
+        if button_down:
+            self._dwell_since = None
+            if self._drag_in_since is None:
+                self._dwell_blocked = True       # a click on whatever is underneath
+            elif now - self._drag_in_since >= 0.25 and not self._drop_override:
+                self._drop_override = True       # become a drop target for the drag
+                self._update_passthrough()
+            return
+        self._drag_in_since = None
+        if self._drop_override:
+            self._drop_override = False
+            self._update_passthrough()
+
+        how = self.config.get("through_open", "edge")
+        at_edge = pos.y() <= self._get_screen_geometry().y() + 1
+        triggering = (how == "dwell") or (how == "edge" and at_edge)
+        if self._dwell_blocked or not triggering:
+            self._dwell_since = None
+            return
+        if self._dwell_since is None:
+            self._dwell_since = now
+        elif now - self._dwell_since >= int(self.config.get("through_dwell_ms", 350)) / 1000:
+            self._dwell_since = None
+            self.expand()
 
     def set_user_hidden(self, hidden):
         """Tray 'Toggle Island'."""
@@ -716,13 +836,14 @@ class DynamicIslandWindow(QWidget):
                     self.expand()
                 event.accept()
                 return
-            # Snap to center if close to middle
+            # Remember where it was dropped (snaps to center when close to the middle)
             geom = self._get_screen_geometry()
-            cur_x = self.x() + self.width() / 2
-            screen_center = geom.x() + geom.width() / 2
-            if abs(cur_x - screen_center) < 140:
-                snap_x = int(geom.x() + (geom.width() - self.width()) / 2)
-                self.move(snap_x, self.y())
+            offset = int(self.x() + self.width() / 2 - (geom.x() + geom.width() / 2))
+            self.config.set("island_offset_x", 0 if abs(offset) < 60 else offset)
+            if self.is_expanded:
+                self.move(self._centered_x(self.width()), self._rest_y())
+            else:
+                self._reposition_compact()
             event.accept()
 
     def _show_context_menu(self, pos):
@@ -781,6 +902,10 @@ class DynamicIslandWindow(QWidget):
             focus_menu.addAction("⏹ Stop timer").triggered.connect(self.timer_service.stop)
 
         menu.addAction("🎨 Customize Island…").triggered.connect(self.open_customize)
+        through = menu.addAction("👻 Click-Through Pill (don't block what's under it)")
+        through.setCheckable(True)
+        through.setChecked(self._through_enabled())
+        through.triggered.connect(lambda on: self.toggle_through_mode(on))
         autohide = menu.addAction("🫥 Hide at Top (show when cursor touches top)")
         autohide.setCheckable(True)
         autohide.setChecked(self._autohide_enabled())

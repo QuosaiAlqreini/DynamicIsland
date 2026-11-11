@@ -405,3 +405,29 @@ def fullscreen_app_active(island_hwnd=None):
     except Exception:
         pass
     return False
+
+
+# ------------------------------------------------------------ Click-through
+WS_EX_TRANSPARENT, WS_EX_LAYERED = 0x20, 0x80000
+VK_LBUTTON, VK_RBUTTON = 0x01, 0x02
+
+
+def set_click_through(hwnd, on):
+    """Make a window ignore the mouse so clicks land on whatever is underneath."""
+    if not IS_WINDOWS or not hwnd:
+        return False
+    try:
+        style = user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
+        new = (style | WS_EX_TRANSPARENT | WS_EX_LAYERED) if on else (style & ~WS_EX_TRANSPARENT)
+        if new != style:
+            user32.SetWindowLongW(hwnd, GWL_EXSTYLE, new)
+        return True
+    except Exception:
+        return False
+
+
+def mouse_button_down():
+    """True while the left or right mouse button is held."""
+    if not IS_WINDOWS:
+        return False
+    return bool((user32.GetAsyncKeyState(VK_LBUTTON) | user32.GetAsyncKeyState(VK_RBUTTON)) & 0x8000)

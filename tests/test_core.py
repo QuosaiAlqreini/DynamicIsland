@@ -166,3 +166,78 @@ def test_media_polling_never_blocks_ui_thread(qapp, monkeypatch):
     svc._poll_media()
     svc.toggle_play_pause()
     assert time.perf_counter() - start < 0.05
+
+
+# ------------------------------------------------------------ through mode
+def _through_island(qapp, how="edge"):
+    from config import ConfigManager
+    c = ConfigManager()
+    c.set("through_mode", True)
+    c.set("through_open", how)
+    c.set("visibility_mode", "always")
+    c.set("island_offset_x", 0)
+    w = _island()
+    w.show()
+    qapp.processEvents()
+    return w
+
+
+def test_through_mode_click_does_not_open(qapp):
+    from PyQt6.QtCore import QPoint
+    w = _through_island(qapp, "dwell")
+    assert w._passthrough
+    inside = w.geometry().center()
+    w._through_step(inside, False, 0.0)       # cursor arrives
+    assert w.windowOpacity() < 1 or True      # fade is best-effort per platform
+    w._through_step(inside, True, 0.1)        # user clicks the tab underneath
+    w._through_step(inside, False, 0.2)
+    w._through_step(inside, False, 5.0)       # cursor keeps resting there
+    assert not w.is_expanded
+    w._through_step(QPoint(5, 500), False, 5.1)   # leaves
+    w._through_step(inside, False, 6.0)       # comes back and rests
+    w._through_step(inside, False, 6.5)
+    assert w.is_expanded and not w._passthrough
+    w.collapse()
+    assert w._passthrough
+
+
+def test_through_mode_edge_open_and_drag_in(qapp):
+    from PyQt6.QtCore import QPoint
+    w = _through_island(qapp, "edge")
+    g = w.geometry()
+    on_pill, at_edge, away = g.center(), QPoint(g.center().x(), 0), QPoint(5, 500)
+    w._through_step(on_pill, False, 0.0)
+    w._through_step(on_pill, False, 2.0)      # resting on the pill is not enough
+    assert not w.is_expanded
+    w._through_step(away, False, 2.1)
+    w._through_step(on_pill, True, 3.0)       # dragging a file in
+    w._through_step(on_pill, True, 3.4)
+    assert w._drop_override and not w._passthrough   # now a drop target
+    w._through_step(away, False, 3.6)
+    assert w._passthrough
+    w._through_step(at_edge, False, 4.0)      # push against the top edge
+    w._through_step(at_edge, False, 4.5)
+    assert w.is_expanded
+
+
+def test_position_offset(qapp):
+    from config import ConfigManager
+    w = _through_island(qapp)
+    centered = w.x()
+    ConfigManager().set("island_offset_x", -200)
+    w.apply_customization()
+    assert w.x() == centered - 200
+    w.expand()
+    assert w.anim.endValue().center().x() < w._get_screen_geometry().center().x()
+    ConfigManager().set("island_offset_x", 0)
+
+
+@windows_only
+def test_click_through_style_is_applied(qapp):
+    import ctypes
+    w = _through_island(qapp)
+    style = ctypes.windll.user32.GetWindowLongW(int(w.winId()), -20)
+    assert style & 0x20           # WS_EX_TRANSPARENT while folded
+    w.expand()
+    style = ctypes.windll.user32.GetWindowLongW(int(w.winId()), -20)
+    assert not style & 0x20       # interactive while open

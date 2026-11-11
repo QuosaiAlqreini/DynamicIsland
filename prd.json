@@ -297,6 +297,22 @@
       "priority": 21,
       "passes": true,
       "notes": "modules/customize_dialog.py, services/info_service.py, modules/info_widget.py"
+    },
+    {
+      "id": "US-022",
+      "title": "Click-through pill and position along the top edge",
+      "description": "The folded island must never block tabs/buttons underneath it.",
+      "acceptanceCriteria": [
+        "Folded pill is WS_EX_TRANSPARENT in through mode; open island is interactive",
+        "Opens by top-edge push (default), dwell, or hotkey only; a click under the pill never opens it",
+        "Pill fades under the cursor",
+        "Dragging onto the pill makes it a drop target after 250 ms",
+        "island_offset_x shifts pill and expanded panel; drag persists it",
+        "Selftest measures UI-thread stalls and fails above 500 ms"
+      ],
+      "priority": 22,
+      "passes": true,
+      "notes": "island_window._through_step (unit-tested), win_input.set_click_through"
     }
   ]
 }

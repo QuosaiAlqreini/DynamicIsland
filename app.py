@@ -166,6 +166,7 @@ def main():
     tray_menu.addAction("📥 Open Shelf").triggered.connect(lambda: island.open_tab(TAB_SHELF))
     tray_menu.addAction("📝 Quick Note").triggered.connect(island.quick_note)
     tray_menu.addAction("🎨 Customize Island…").triggered.connect(island.open_customize)
+    tray_menu.addAction("👻 Click-Through Pill on / off").triggered.connect(lambda: island.toggle_through_mode())
     tray_menu.addAction("⌨️ Automations & Hotkeys…").triggered.connect(island.open_automations)
 
     # Themes submenu
@@ -203,10 +204,32 @@ def main():
 
     if selftest:
         # Used by CI: start everything, then exit cleanly after a few seconds
+        # ...and measure how long the UI thread ever stalls while everything runs
+        import time as _t
+        gaps, last = [], [_t.perf_counter()]
+
+        def beat():
+            now = _t.perf_counter()
+            gaps.append(now - last[0])
+            last[0] = now
+        heartbeat = QTimer(app)
+        heartbeat.timeout.connect(beat)
+        QTimer.singleShot(1500, lambda: (last.__setitem__(0, _t.perf_counter()), heartbeat.start(10)))
+        QTimer.singleShot(2500, island.expand)
+        QTimer.singleShot(4000, island.collapse)
+        QTimer.singleShot(5500, island.expand)
+
         def finish():
+            worst = max(gaps) * 1000 if gaps else 0
+            slow = sum(g > 0.05 for g in gaps)
+            print(f"SELFTEST stalls: worst={worst:.0f}ms frames_over_50ms={slow} of {len(gaps)}")
+            if worst > 500:
+                print("SELFTEST FAILED: UI thread stalled")
+                app.exit(1)
+                return
             print(f"SELFTEST OK {__version__}")
             app.quit()
-        QTimer.singleShot(4000, finish)
+        QTimer.singleShot(8000, finish)
 
     sys.exit(app.exec())
 

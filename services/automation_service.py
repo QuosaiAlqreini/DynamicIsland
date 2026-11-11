@@ -54,6 +54,7 @@ ACTIONS = [
     ("quick_note", "Island: quick note", "Island", None),
     ("focus", "Island: start focus timer", "Island", "Minutes (default 25)"),
     ("see_screen", "Island: AI look at my screen", "Island", None),
+    ("through_toggle", "Island: click-through pill on / off", "Island", None),
 ]
 ACTION_INFO = {key: (label, group, hint) for key, label, group, hint in ACTIONS}
 WINDOW_ACTIONS = {"win_top", "win_center", "win_left", "win_right", "win_max", "win_min", "win_close"}
@@ -227,7 +228,7 @@ class AutomationService(QObject):
 
     @property
     def hotstrings_enabled(self):
-        return bool(self.config.get("hotstrings_enabled", True))
+        return bool(self.config.get("hotstrings_enabled", False))
 
     def save_macros(self, macros):
         self.config.set("automations", [dict(m) for m in macros])
@@ -400,7 +401,7 @@ class AutomationService(QObject):
         if action == "island_tab":
             self.island_actions.get("open_tab", lambda n: None)(arg.lower() or "media")
             return True
-        if action in ("island_toggle", "quick_note", "see_screen"):
+        if action in ("island_toggle", "quick_note", "see_screen", "through_toggle"):
             self.island_actions.get(action, lambda: None)()
             return True
         print(f"[automation] Unknown action: {action}")

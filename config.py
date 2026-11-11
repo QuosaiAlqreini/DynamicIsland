@@ -60,6 +60,11 @@ DEFAULT_CONFIG = {
     "hide_in_fullscreen": True,
     "peek_on_activity": True,          # auto-hide mode: slide down for timers/builds/alerts
     "reveal_zone_px": 220,             # half-width of the top-edge hot zone around the island
+    "through_mode": True,              # clicks pass through the folded pill
+    "through_open": "edge",            # "edge" (push cursor to top edge) | "dwell" | "manual"
+    "through_dwell_ms": 350,
+    "through_opacity": 0.35,           # pill fades to this while the cursor is over it
+    "island_offset_x": 0,              # px from screen center (negative = left)
     "pill_left": "ai_dot",
     "pill_center": "clock",
     "pill_right": "battery_icon",
@@ -67,7 +72,7 @@ DEFAULT_CONFIG = {
     "info_items": [],
     # --- AutoHotkey-style automation ---
     "launch_at_login": False,
-    "hotstrings_enabled": True,
+    "hotstrings_enabled": False,       # opt-in: it listens to typing system-wide
     "automations": [
         {"name": "Terminal", "hotkey": "Ctrl+Alt+T", "action": "run", "arg": "wt", "enabled": True},
         {"name": "Quick note", "hotkey": "Ctrl+Alt+N", "action": "quick_note", "arg": "", "enabled": True},
@@ -79,6 +84,7 @@ DEFAULT_CONFIG = {
         {"name": "Brightness up", "hotkey": "Ctrl+Alt+PgUp", "action": "bright_up", "arg": "10", "enabled": True},
         {"name": "Brightness down", "hotkey": "Ctrl+Alt+PgDown", "action": "bright_down", "arg": "10", "enabled": True},
         {"name": "Dark mode", "hotkey": "Ctrl+Alt+D", "action": "dark_mode", "arg": "", "enabled": True},
+        {"name": "Click-through", "hotkey": "Ctrl+Alt+G", "action": "through_toggle", "arg": "", "enabled": True},
         {"name": "Screenshot", "hotkey": "", "action": "screenshot", "arg": "", "enabled": True},
         {"name": "Lock", "hotkey": "", "action": "lock", "arg": "", "enabled": True}
     ],

@@ -34,6 +34,13 @@ Right-click the island (or the tray icon) ➔ **`🎨 Customize Island…`**. A 
   * **Custom text:** a reminder or a status line.
   * **Command output:** the first line a command prints, refreshed every N seconds. For example, weather with `curl -s "wttr.in/?format=%t+%C"`.
   * Every item gets a card in the **ℹ️ Info** tab, and you can put any of them in the pill.
+* **👻 It never blocks what's under it (click-through pill, on by default):**
+  * Clicks on the folded pill go straight to the browser tab, title bar or button underneath, and the pill fades while your cursor is over it so you can see what you're clicking.
+  * To open the island, push the cursor against the top edge of the screen above the pill for a moment, or press `Ctrl+Alt+Space`. You can switch this to "rest the cursor on the pill" or "hotkey only".
+  * A click never makes it pop open under your cursor.
+  * Dragging a file onto the pill still works: hold it over the pill for a moment.
+  * Toggle with `Ctrl+Alt+G`, the tray menu, or the right-click menu.
+  * **Position:** shift the island left or right along the top edge (Customize → Visibility), or drag it when click-through is off. It opens where it sits.
 * **👁️ Visibility:**
   * **Hide in full screen:** the island disappears while a game, video, presentation or full-screen (F11) browser is in front, and comes back when you leave. `Ctrl+Alt+Space` still opens it if you need it.
   * **Hide at the top:** the island tucks away above the screen and slides down when your cursor touches the top edge near it. Optionally it peeks down for finished timers, builds and alerts. Quick toggle: right-click ➔ `🫥 Hide at Top`.
@@ -63,7 +70,7 @@ A system-wide hotkey and text-expansion engine, so Dynamic Island can replace a 
   * **Windows:** toggle always-on-top, center, snap left/right, maximize/restore, minimize, close.
   * **Laptop:** volume, mute, media keys, screen brightness up/down, ☕ keep awake, dark/light mode, screenshot, show desktop, lock, sleep.
   * **Island:** open/close, jump to a tab, quick note, start a focus timer, AI look at my screen.
-* **Hotstrings (text expansion):** type `;date` + Space and it becomes today's date in any app. Supports instant triggers (AHK's `*` option). Only the current word is ever held in memory.
+* **Hotstrings (text expansion, off until you turn it on in the ⌨️ Keys tab):** type `;date` + Space and it becomes today's date in any app. Supports instant triggers (AHK's `*` option). Only the current word is ever held in memory.
 * **Import AutoHotkey scripts:** paste or open a `.ahk` file (v1 or v2). Simple hotkeys (`Run`, `Send`, remaps like `CapsLock::Esc`, `AlwaysOnTop`, `WinMinimize`...) and one-line hotstrings are converted; anything more complex is listed so you can run it with the "Run AutoHotkey script" action.
 * **One-click panel:** the **⌨️ Keys** tab shows every automation as a button, plus toggles for hotstrings and keep-awake.
 * **Start with Windows:** Preferences ➔ `🚀 Start Dynamic Island when I sign in`.
@@ -210,6 +217,8 @@ To achieve the clean macOS look without duplicated taskbar icons:
 | **Quick note** | `📝 Notes` tab, or right-click / tray ➔ `📝 Quick Note` |
 | **Focus timer** | `⏱️ Focus` tab, or right-click ➔ `⏱️ Start Focus Timer` |
 | **Customize pill, tabs & info** | Right-click ➔ `🎨 Customize Island…` |
+| **Open the island (click-through on)** | Push the cursor against the top edge above the pill, or `Ctrl+Alt+Space` |
+| **Click-through on / off** | `Ctrl+Alt+G`, or tray ➔ `👻 Click-Through Pill` |
 | **Hide at the top** | Right-click ➔ `🫥 Hide at Top`, then touch the top edge to show it |
 | **Jump to a tab** | `Ctrl+1..9`, `Ctrl+Tab` to cycle, `Esc` to close |
 | **Edit automations** | `⌨️ Keys` tab ➔ `✏️ Edit`, or right-click ➔ `⌨️ Automations & Hotkeys…` |
