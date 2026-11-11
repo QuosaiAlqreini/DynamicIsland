@@ -141,6 +141,23 @@ def main():
     def toggle_island():
         island.set_user_hidden(not island.user_hidden)
 
+    header = tray_menu.addAction(f"{APP_NAME} {__version__}")
+    header.setEnabled(False)
+    tray_menu.addSeparator()
+
+    style_menu = tray_menu.addMenu("📱 Look: Island or Notch")
+    island_look = style_menu.addAction("🏝️ Floating island")
+    notch_look = style_menu.addAction("📱 Smooth notch")
+    for act in (island_look, notch_look):
+        act.setCheckable(True)
+    island_look.triggered.connect(lambda: island.set_style(False))
+    notch_look.triggered.connect(lambda: island.set_style(True))
+
+    def sync_tray():
+        island_look.setChecked(not island.notch_mode)
+        notch_look.setChecked(island.notch_mode)
+    tray_menu.aboutToShow.connect(sync_tray)
+
     show_action = tray_menu.addAction("🙈 Hide Island")
     show_action.triggered.connect(toggle_island)
     tray_menu.aboutToShow.connect(lambda: show_action.setText(

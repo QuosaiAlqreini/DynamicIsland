@@ -407,6 +407,10 @@ def test_manual_show_hide_and_style(qapp):
     assert w.isVisible() and not w.user_hidden
     w.collapse()
     w.set_style(True)
+    import time
+    end = time.monotonic() + 0.8
+    while time.monotonic() < end:
+        qapp.processEvents()
     assert w.notch_mode and w.y() == w._get_screen_geometry().y()
     w.grab()                                     # notch painting must not crash
     w.set_style(False)
@@ -482,3 +486,30 @@ def test_town_search_live(qapp):
     if not found and "failed" in msg:
         pytest.skip(f"network unavailable: {msg}")
     assert any("Germany" in label and 50 < lat < 51 for label, lat, _lng in found), found
+
+
+def test_island_and_notch_really_look_different(qapp):
+    """Switching style moves the window to the top edge and changes the silhouette."""
+    import time
+    w = _island()
+    w.show()
+
+    def settle():
+        end = time.monotonic() + 0.8
+        while time.monotonic() < end:
+            qapp.processEvents()
+
+    w.set_style(False)
+    settle()
+    island_img = w.grab().toImage()
+    assert w.y() == w._get_screen_geometry().y() + w.top_offset
+    w.set_style(True)                    # also shows a flash that widens the pill
+    settle()
+    notch_img = w.grab().toImage()
+    assert w.y() == w._get_screen_geometry().y(), "notch must sit on the top edge"
+    assert island_img.pixelColor(15, 0).alpha() < 100           # island: floats below the edge (only soft edge)
+    assert notch_img.pixelColor(15, 0).alpha() > 200            # notch: joins the screen edge
+    assert notch_img.pixelColor(2, w.height() - 2).alpha() == 0  # notch: narrower at the bottom
+    w.set_style(False)
+    settle()
+    assert w.y() == w._get_screen_geometry().y() + w.top_offset

@@ -56,6 +56,7 @@ ACTIONS = [
     ("see_screen", "Island: AI look at my screen", "Island", None),
     ("through_toggle", "Island: click-through pill on / off", "Island", None),
     ("island_visibility", "Island: show / hide", "Island", None),
+    ("style_toggle", "Island: switch island / notch look", "Island", None),
     ("command_bar", "Island: command bar", "Island", None),
     ("add_task", "Island: add task / reminder", "Island", "Task phrase, e.g. Stretch in 30m (empty = open Tasks)"),
     ("water", "Island: log a glass of water", "Island", None),
@@ -227,6 +228,7 @@ class AutomationService(QObject):
     NEW_DEFAULTS = [
         {"name": "Show / hide island", "hotkey": "Ctrl+Alt+H", "action": "island_visibility", "arg": "", "enabled": True},
         {"name": "Click-through", "hotkey": "Ctrl+Alt+G", "action": "through_toggle", "arg": "", "enabled": True},
+        {"name": "Island / notch look", "hotkey": "Ctrl+Alt+J", "action": "style_toggle", "arg": "", "enabled": True},
     ]
 
     def _add_new_default_macros(self):
@@ -437,7 +439,7 @@ class AutomationService(QObject):
                 self.island_actions.get(action, lambda: None)()
             return True
         if action in ("island_toggle", "quick_note", "see_screen", "through_toggle", "command_bar",
-                      "island_visibility"):
+                      "island_visibility", "style_toggle"):
             self.island_actions.get(action, lambda: None)()
             return True
         print(f"[automation] Unknown action: {action}")

@@ -50,24 +50,27 @@ TAB_KEY_TO_INDEX = {"media": TAB_MEDIA, "system": TAB_SYSTEM, "ai": TAB_AI, "too
 TAB_NAMES = dict(TAB_KEY_TO_INDEX, sys=TAB_SYSTEM, clipboard=TAB_SHELF,
                  timer=TAB_FOCUS, automations=TAB_KEYS, todo=TAB_TASKS, water=TAB_DAY,
                  prayer=TAB_DAY)
-NOTCH_SHOULDER = 10       # width of the curved "ears" joining the notch to the screen edge
+NOTCH_SHOULDER = 14       # width of the curved "ears" joining the notch to the screen edge
 
 
 def notch_path(w, h, expanded=False):
-    """Notch silhouette: flat top on the screen edge, curved shoulders, rounded bottom."""
+    """Smooth notch silhouette: flat top on the screen edge, soft S-curved
+    shoulders flowing into the bezel, and round bottom corners."""
+    from PyQt6.QtCore import QRectF
     from PyQt6.QtGui import QPainterPath
     e = NOTCH_SHOULDER
-    r = min(22 if expanded else 14, (h - e) / 2, (w - 2 * e) / 2)
+    r = min(24 if expanded else 16, (h - e) / 2, (w - 2 * e) / 2)
+    k = 0.55                                           # bezier "roundness"
     p = QPainterPath()
     p.moveTo(0, 0)
     p.lineTo(w, 0)
-    p.quadTo(w - e, 0, w - e, e)                       # right shoulder
-    p.lineTo(w - e, h - 1 - r)
-    p.quadTo(w - e, h - 1, w - e - r, h - 1)           # bottom-right corner
-    p.lineTo(e + r, h - 1)
-    p.quadTo(e, h - 1, e, h - 1 - r)                   # bottom-left corner
+    p.cubicTo(w - e * k, 0, w - e, e * (1 - k), w - e, e)            # right shoulder
+    p.lineTo(w - e, h - r)
+    p.arcTo(QRectF(w - e - 2 * r, h - 2 * r, 2 * r, 2 * r), 0, -90)   # bottom-right
+    p.lineTo(e + r, h)
+    p.arcTo(QRectF(e, h - 2 * r, 2 * r, 2 * r), 270, -90)             # bottom-left
     p.lineTo(e, e)
-    p.quadTo(e, 0, 0, 0)                               # left shoulder
+    p.cubicTo(e, e * (1 - k), e * k, 0, 0, 0)                         # left shoulder
     p.closeSubpath()
     return p
 
@@ -300,6 +303,7 @@ class DynamicIslandWindow(QWidget):
             "collapse": self.collapse,
             "through_toggle": self.toggle_through_mode,
             "island_visibility": self.toggle_visibility,
+            "style_toggle": lambda: self.set_style(not self.notch_mode),
             "command_bar": self.toggle_command_bar,
             "add_task": lambda phrase="": (self.tasks_service.add(phrase) if phrase.strip()
                                            else self.open_tab_by_key("tasks")),
@@ -329,6 +333,7 @@ class DynamicIslandWindow(QWidget):
         self._apply_visibility_mode()
         if not self.is_expanded:
             self._reposition_compact()
+        self.update()
 
     def open_automations(self):
         dlg = AutomationDialog(self.theme, self.automation_service, self)
@@ -461,7 +466,10 @@ class DynamicIslandWindow(QWidget):
         """Grow the pill while a live activity (timer, build, toast) is shown."""
         self.compact_w = self.base_compact_w + (90 if active else 0)
         if not self.is_expanded and not self.is_dragging and not self.tucked:
-            self._animate_to(QRect(self._centered_x(self.compact_w), self.y(), self.compact_w, self.compact_h))
+            # Use the resting position, not the current one: another animation (e.g. switching
+            # to the notch) may still be moving the window and must not be cancelled midway.
+            self._animate_to(QRect(self._centered_x(self.compact_w), self._rest_y(),
+                                   self.compact_w, self.compact_h))
 
     def _on_timer_tick(self, remaining, total, running):
         if remaining <= 0:
@@ -801,13 +809,16 @@ class DynamicIslandWindow(QWidget):
             self.idle_pill.flash("👋 Back", self.theme["accent"], 1200)
 
     def set_style(self, notch):
+        """Switch between the floating island and the notch, live."""
         self.notch_mode = bool(notch)
         self.config.set("notch_mode", self.notch_mode)
         if self.is_expanded:
             self.collapse()
-        else:
-            self._reposition_compact()
+        elif not self.tucked:
+            self._animate_to(QRect(self._centered_x(self.compact_w), self._rest_y(),
+                                   self.compact_w, self.compact_h))
         self.update()
+        self.idle_pill.flash("📱 Notch" if self.notch_mode else "🏝️ Island", self.theme["accent"], 1500)
 
     def set_user_hidden(self, hidden):
         """Tray 'Toggle Island'."""
@@ -1141,6 +1152,8 @@ class DynamicIslandWindow(QWidget):
         painter.setPen(border_pen)
 
         if self.notch_mode:
+            # No outline: the notch melts into the screen bezel
+            painter.setPen(Qt.PenStyle.NoPen)
             painter.drawPath(notch_path(w, h, self.is_expanded))
         else:
             # Draw rounded pill shape
