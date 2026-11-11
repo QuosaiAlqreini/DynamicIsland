@@ -82,6 +82,8 @@ DEFAULT_CONFIG = {
     "prayer_lng": 46.6753,
     "prayer_method": "umm_al_qura",
     "prayer_asr_hanafi": False,
+    "prayer_high_lat": "angle",        # rule for northern summer nights (Germany and north)
+    "prayer_offsets": {},              # {"Maghrib": 2}: minutes to match the local mosque
     "prayer_pause_media": False,
     "pomodoro_work_min": 25,
     "pomodoro_break_min": 5,

@@ -49,7 +49,11 @@ Right-click the island (or the tray icon) ➔ **`🎨 Customize Island…`**. A 
 ### 🌙 Daily Life: Tasks, Water, Prayer Times, Pomodoro, Lyrics & Command Bar (NEW in 1.5)
 * **✅ Tasks & reminders:** type a task the way you'd say it: `Call mom at 17:30`, `Stretch in 20m`, `Report tomorrow 9am`. When it's due, the pill shows it, Windows shows a notification, and you can snooze it (10 min or 1 hour) or tick it off. Tasks sort by time.
 * **💧 Water tracker:** a ring fills as you log glasses toward your daily goal, with optional reminders. Put the ring in the pill from Customize.
-* **🕌 Prayer times (optional, off by default):** pick your city or enter coordinates. Times are calculated on your PC with nothing sent anywhere, shown with a sun arc, with a reminder at each prayer and an option to pause music. Supports Umm al-Qura, MWL, ISNA, Egyptian and Karachi methods, and Hanafi Asr. Times use your laptop's time zone.
+* **🕌 Prayer times (optional, off by default):** calculated on your PC, shown with a sun arc, a reminder at each prayer and an option to pause music.
+  * **Location:** pick a country and city (50+ German cities, plus Austria, Switzerland, the Netherlands, Belgium, France, the UK, Scandinavia, the Middle East and more), or **search any town** (only the town name is sent to open-meteo.com), or type coordinates.
+  * **Methods:** MWL, Diyanet/DITIB, Umm al-Qura, Egyptian, ISNA, UOIF (France), Karachi, Gulf, Kuwait, JAKIM, Kemenag; Hanafi Asr option.
+  * **Northern summers:** in Germany and further north the sky never gets fully dark in summer, so Fajr and Isha use a rule you choose (angle-based, one-seventh of the night, or middle of the night).
+  * **Match your mosque:** adjust each prayer by a few minutes so the times match your local mosque's timetable exactly. A live preview shows today's times as you change settings.
 * **🍅 Pomodoro:** the 🍅 button in Focus runs 4 rounds of 25 min focus with 5 min breaks and a long break at the end, moving on automatically. Click it again to skip a phase.
 * **🎵 Synced lyrics and real volume:** the Media tab shows the line being sung (from the open LRCLIB database; only the song title and artist are sent, and you can turn it off in Customize). The volume slider and mute button now control the real Windows volume.
 * **🔎 Command bar (`Alt+Space`):** one box for everything:

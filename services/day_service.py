@@ -66,14 +66,16 @@ class DayService(QObject):
     def prayer_times(self, now=None):
         now = now or dt.datetime.now()
         key = (now.date(), self.config.get("prayer_lat"), self.config.get("prayer_lng"),
-               self.config.get("prayer_method"), self.config.get("prayer_asr_hanafi"))
+               self.config.get("prayer_method"), self.config.get("prayer_asr_hanafi"),
+               self.config.get("prayer_high_lat"), str(self.config.get("prayer_offsets")))
         if key != self._times_date:
             self._times_date = key
             self._times = prayer.prayer_times(
                 now.date(), float(self.config.get("prayer_lat", 24.7136)),
                 float(self.config.get("prayer_lng", 46.6753)), prayer.local_utc_offset_hours(),
                 self.config.get("prayer_method", "umm_al_qura"),
-                bool(self.config.get("prayer_asr_hanafi", False)))
+                bool(self.config.get("prayer_asr_hanafi", False)),
+                self.config.get("prayer_high_lat", "angle"), self.config.get("prayer_offsets", {}))
             self._announced = {n for n, t in self._times.items() if t <= now}
         return self._times
 
@@ -89,7 +91,8 @@ class DayService(QObject):
             now.date() + dt.timedelta(days=1), float(self.config.get("prayer_lat", 24.7136)),
             float(self.config.get("prayer_lng", 46.6753)), prayer.local_utc_offset_hours(),
             self.config.get("prayer_method", "umm_al_qura"),
-            bool(self.config.get("prayer_asr_hanafi", False)))
+            bool(self.config.get("prayer_asr_hanafi", False)),
+            self.config.get("prayer_high_lat", "angle"), self.config.get("prayer_offsets", {}))
         return "Fajr", tomorrow["Fajr"]
 
     def next_prayer_text(self, now=None):

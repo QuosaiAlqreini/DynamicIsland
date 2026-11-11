@@ -426,3 +426,59 @@ def test_new_default_hotkeys_reach_existing_users(qapp):
     svc.save_macros([m for m in svc.macros if m["action"] != "through_toggle"])
     AutomationService(None)                                        # deleted defaults are not re-added
     assert not any(m["action"] == "through_toggle" for m in ConfigManager().get("automations"))
+
+
+def test_germany_prayer_options():
+    import datetime as dt
+    from services.prayer import prayer_times, COUNTRIES, CITIES, suggested_method, country_of
+    assert len(COUNTRIES["Germany"]) >= 40 and "Hamburg" in CITIES
+    assert country_of("Hamburg") == "Germany" and suggested_method("Germany") == "mwl"
+    berlin = CITIES["Berlin"]
+    nov = prayer_times(dt.date(2026, 11, 11), *berlin, 1, "mwl")
+    assert (nov["Dhuhr"].hour, nov["Maghrib"].hour) == (11, 16)
+    # Midsummer: 18° twilight is never reached in Berlin, every rule still gives an ordered day
+    for rule in ("angle", "seventh", "middle", "none"):
+        t = prayer_times(dt.date(2026, 6, 21), *berlin, 2, "mwl", high_lat=rule)
+        order = [t[n] for n in ("Fajr", "Sunrise", "Dhuhr", "Asr", "Maghrib", "Isha")]
+        assert order == sorted(order), rule
+    seventh = prayer_times(dt.date(2026, 6, 21), *berlin, 2, "mwl", high_lat="seventh")
+    middle = prayer_times(dt.date(2026, 6, 21), *berlin, 2, "mwl", high_lat="middle")
+    assert middle["Fajr"] < seventh["Fajr"]
+    # Mosque adjustments are applied per prayer
+    adj = prayer_times(dt.date(2026, 11, 11), *berlin, 1, "mwl", offsets={"Maghrib": 3, "Fajr": -5})
+    assert (adj["Maghrib"] - nov["Maghrib"]).seconds == 180
+    assert (nov["Fajr"] - adj["Fajr"]).seconds == 300
+    assert adj["Dhuhr"] == nov["Dhuhr"]
+
+
+def test_day_settings_dialog_germany(qapp):
+    from modules.day_widget import DaySettings
+    from styles import get_theme
+    d = DaySettings(get_theme("obsidian"))
+    d.country.setCurrentIndex(d.country.findData("Germany"))
+    d.city.setCurrentIndex(d.city.findData("Hamburg"))
+    assert abs(d.lat.value() - 53.5511) < 0.01 and d.method.currentData() == "mwl"
+    d._on_geo_results([("Gießen, Hesse, Germany", 50.5841, 8.6784)], "")
+    assert abs(d.lat.value() - 50.5841) < 0.01
+    d.offset_spins["Maghrib"].setValue(2)
+    d._save()
+    from config import ConfigManager
+    c = ConfigManager()
+    assert c.get("prayer_offsets") == {"Maghrib": 2} and c.get("prayer_city") == "Gießen"
+    assert "Maghrib" in d.preview.text()
+
+
+@windows_only
+def test_town_search_live(qapp):
+    """Real request to the geocoding service (runs on the Windows build machine)."""
+    from modules.day_widget import DaySettings
+    from styles import get_theme
+    d = DaySettings(get_theme("obsidian"))
+    got = []
+    d._geo_done.connect(lambda found, msg: got.append((found, msg)))
+    d._geo_lookup("Gießen")
+    qapp.processEvents()
+    found, msg = got[0]
+    if not found and "failed" in msg:
+        pytest.skip(f"network unavailable: {msg}")
+    assert any("Germany" in label and 50 < lat < 51 for label, lat, _lng in found), found
