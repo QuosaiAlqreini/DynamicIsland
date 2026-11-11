@@ -75,7 +75,11 @@ class FocusWidget(QWidget):
         self.btn_plus.clicked.connect(lambda: self.timer_service.add_minutes(5))
         self.btn_stop = QPushButton("Stop")
         self.btn_stop.clicked.connect(self.timer_service.stop)
-        for b in (self.btn_toggle, self.btn_plus, self.btn_stop):
+        self.btn_pomo = QPushButton("🍅")
+        self.btn_pomo.setToolTip("Pomodoro: 4 rounds of 25 min focus with 5 min breaks, then a 15 min break.\n"
+                                 "Click again while it runs to skip to the next phase.")
+        self.btn_pomo.clicked.connect(self._pomodoro)
+        for b in (self.btn_pomo, self.btn_toggle, self.btn_plus, self.btn_stop):
             ctrl.addWidget(b)
         tcol.addLayout(ctrl)
         root.addLayout(tcol, 1)
@@ -90,6 +94,7 @@ class FocusWidget(QWidget):
         bcol.addLayout(bhead)
         self.build_list = QListWidget()
         self.build_list.setWordWrap(True)
+        self.build_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.build_list.setToolTip("Long-running builds, installs and test runs are detected automatically.\n"
                                    "Edit the patterns in ~/.dynamic_island/config.json (build_watch_patterns).")
         bcol.addWidget(self.build_list)
@@ -110,8 +115,17 @@ class FocusWidget(QWidget):
         self.theme = theme
         self._apply_styles()
 
+    def _pomodoro(self):
+        if self.timer_service.plan:
+            self.timer_service.skip()
+        else:
+            c = self.config
+            self.timer_service.start_pomodoro(c.get("pomodoro_work_min", 25), c.get("pomodoro_break_min", 5),
+                                              c.get("pomodoro_long_break_min", 15), c.get("pomodoro_rounds", 4))
+
     def _on_tick(self, remaining, total, running):
         self.time_label.setText(format_seconds(remaining))
+        self.timer_badge.setText(f"⏱️ {self.timer_service.label.upper()}" if remaining > 0 else "⏱️ FOCUS TIMER")
         active = remaining > 0
         self.btn_toggle.setEnabled(active)
         self.btn_stop.setEnabled(active)

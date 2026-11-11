@@ -267,3 +267,110 @@ def test_click_through_style_is_applied_on_real_window():
     out = subprocess.run([sys.executable, "-c", _STYLE_PROBE], capture_output=True, text=True,
                          timeout=60, env=env, cwd=ROOT)
     assert "STYLES 32 0 32" in out.stdout, out.stdout + out.stderr
+
+
+# ------------------------------------- tasks, prayer, water, lyrics, commands
+def test_task_phrases_and_reminders(qapp):
+    import datetime as dt
+    from services.tasks_service import parse_task_phrase, TasksService
+    now = dt.datetime(2026, 11, 11, 14, 0)
+    assert parse_task_phrase("Call mom at 17:30", now) == ("Call mom", dt.datetime(2026, 11, 11, 17, 30))
+    assert parse_task_phrase("Stretch in 20m", now) == ("Stretch", dt.datetime(2026, 11, 11, 14, 20))
+    assert parse_task_phrase("Report tomorrow 9am", now) == ("Report", dt.datetime(2026, 11, 12, 9, 0))
+    assert parse_task_phrase("Buy 2 apples", now) == ("Buy 2 apples", None)
+    svc = TasksService()
+    svc.config.set("tasks", [])
+    fired = []
+    svc.reminder.connect(fired.append)
+    task = svc.add("Tea in 5m", now)
+    svc.add("Someday thing", now)
+    svc.check_due(now)
+    assert not fired
+    svc.check_due(now + dt.timedelta(minutes=6))
+    assert [t["title"] for t in fired] == ["Tea"] and svc.ringing()
+    svc.check_due(now + dt.timedelta(minutes=7))
+    assert len(fired) == 1                      # fires once
+    svc.snooze(task["id"], 10)
+    assert not svc.ringing() and svc.next_due()["title"] == "Tea"
+    svc.set_done(task["id"])
+    assert svc.sorted_tasks()[-1]["title"] == "Tea"
+    svc.config.set("tasks", [])
+
+
+def test_prayer_times_match_published_values():
+    import datetime as dt
+    from services.prayer import prayer_times, CITIES, next_prayer
+
+    def hm(t):
+        return t.hour * 60 + t.minute
+    riyadh = prayer_times(dt.date(2026, 11, 11), *CITIES["Riyadh"], 3, "umm_al_qura")
+    expected = {"Fajr": "04:45", "Dhuhr": "11:37", "Asr": "14:45", "Maghrib": "17:08", "Isha": "18:38"}
+    for name, want in expected.items():
+        h, m = map(int, want.split(":"))
+        assert abs(hm(riyadh[name]) - (h * 60 + m)) <= 3, (name, riyadh[name])
+    assert next_prayer(riyadh, dt.datetime(2026, 11, 11, 15, 0))[0] == "Maghrib"
+    # Far north in summer still returns an ordered day
+    london = prayer_times(dt.date(2026, 6, 1), *CITIES["London"], 1, "mwl")
+    order = [london[n] for n in ("Fajr", "Sunrise", "Dhuhr", "Asr", "Maghrib", "Isha")]
+    assert order == sorted(order)
+
+
+def test_water_and_pomodoro(qapp):
+    from services.day_service import DayService
+    from services.focus_timer_service import FocusTimerService
+    day = DayService()
+    day.config.set("water_log", {})
+    day.add_water()
+    day.add_water(500)
+    assert day.water_ml == 750 and 0.3 < day.water_fraction < 0.4
+    day.config.set("water_log", {})
+    t = FocusTimerService()
+    t.start_pomodoro(25, 5, 15, 2)
+    assert t.label == "Focus 1/2" and len(t.plan) == 3
+    t.skip()
+    assert t.label == "Break" and t.remaining_sec == 300
+    t.skip(); t.skip()
+    assert t.label == "Long break"
+    t.skip()
+    assert not t.active
+
+
+def test_lyrics_and_calculator():
+    from services.lyrics_service import parse_lrc, line_at
+    from services.commands import calculate, run_text_tool
+    lines = parse_lrc("[00:01.00] first\n[00:05.50] second\nnot a line")
+    assert line_at(lines, 0) == "" and line_at(lines, 3) == "first" and line_at(lines, 9) == "second"
+    assert calculate("2*(3+4)") == "14" and calculate("sqrt(16)+2^3") == "12"
+    assert calculate("hello") is None and calculate("__import__('os')") is None
+    assert calculate("9**9**9") is None and calculate("10/0") is None
+    assert run_text_tool("unbase64", run_text_tool("base64", "héllo")) == "héllo"
+
+
+def test_command_bar_suggestions(qapp):
+    from modules.command_bar import CommandBar
+    w = _island()
+    w.tasks_service.config.set("tasks", [])
+    bar = CommandBar(w.theme, w)
+    labels = lambda q: [l for l, _a in bar.suggestions(q)]
+    assert any("14" in l for l in labels("2*(3+4)"))
+    assert any("timer" in l.lower() for l in labels("timer 10m"))
+    assert any("Search the web" in l for l in labels("anything at all"))
+    label, action = bar.suggestions("remind Call mom at 17:30")[0]
+    action()
+    assert w.tasks_service.tasks[0]["title"] == "Call mom"
+    dict(bar.suggestions("10m"))[labels("10m")[0]]()
+    assert w.timer_service.remaining_sec == 600
+    w.timer_service.stop()
+    w.tasks_service.config.set("tasks", [])
+
+
+def test_new_tabs_and_wheel_paging(qapp):
+    from island_window import TAB_TASKS, TAB_DAY
+    w = _island()
+    w.config.set("tabs_visible", ["media", "tasks", "day"])
+    w.apply_customization()
+    assert w.nav_order[1:] == [TAB_TASKS, TAB_DAY]
+    w._switch_tab(w.nav_order[0], save=False)
+    w._cycle_tab(1)
+    assert w.stack.currentIndex() == TAB_TASKS
+    w.config.set("tabs_visible", ["media", "shelf", "tasks", "notes", "focus", "day", "keys", "ai", "system", "tools"])

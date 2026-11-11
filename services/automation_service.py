@@ -55,6 +55,10 @@ ACTIONS = [
     ("focus", "Island: start focus timer", "Island", "Minutes (default 25)"),
     ("see_screen", "Island: AI look at my screen", "Island", None),
     ("through_toggle", "Island: click-through pill on / off", "Island", None),
+    ("command_bar", "Island: command bar", "Island", None),
+    ("add_task", "Island: add task / reminder", "Island", "Task phrase, e.g. Stretch in 30m (empty = open Tasks)"),
+    ("water", "Island: log a glass of water", "Island", None),
+    ("pomodoro", "Island: start Pomodoro", "Island", None),
 ]
 ACTION_INFO = {key: (label, group, hint) for key, label, group, hint in ACTIONS}
 WINDOW_ACTIONS = {"win_top", "win_center", "win_left", "win_right", "win_max", "win_min", "win_close"}
@@ -401,7 +405,11 @@ class AutomationService(QObject):
         if action == "island_tab":
             self.island_actions.get("open_tab", lambda n: None)(arg.lower() or "media")
             return True
-        if action in ("island_toggle", "quick_note", "see_screen", "through_toggle"):
+        if action in ("add_task", "water", "pomodoro"):
+            self.island_actions.get(action, lambda *_: None)(arg) if action == "add_task" else \
+                self.island_actions.get(action, lambda: None)()
+            return True
+        if action in ("island_toggle", "quick_note", "see_screen", "through_toggle", "command_bar"):
             self.island_actions.get(action, lambda: None)()
             return True
         print(f"[automation] Unknown action: {action}")

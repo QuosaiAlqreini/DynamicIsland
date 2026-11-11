@@ -31,16 +31,25 @@ from modules.info_widget import InfoWidget
 from modules.customize_dialog import CustomizeDialog
 from modules.tab_registry import TAB_REGISTRY, DEFAULT_TABS
 from services.info_service import InfoService
+from services.tasks_service import TasksService
+from services.day_service import DayService
+from services.lyrics_service import LyricsService
+from services.volume_service import VolumeService
+from modules.tasks_widget import TasksWidget
+from modules.day_widget import DayWidget
+from modules.command_bar import CommandBar
+from PyQt6.QtWidgets import QAbstractScrollArea, QAbstractSlider, QAbstractSpinBox, QComboBox
 from services import win_input
 import time
 
 # Tab indices (kept stable so existing shortcuts keep working)
-TAB_MEDIA, TAB_SYSTEM, TAB_AI, TAB_TOOLS, TAB_SHELF, TAB_NOTES, TAB_FOCUS, TAB_KEYS, TAB_INFO = range(9)
+TAB_MEDIA, TAB_SYSTEM, TAB_AI, TAB_TOOLS, TAB_SHELF, TAB_NOTES, TAB_FOCUS, TAB_KEYS, TAB_INFO, TAB_TASKS, TAB_DAY = range(11)
 TAB_KEY_TO_INDEX = {"media": TAB_MEDIA, "system": TAB_SYSTEM, "ai": TAB_AI, "tools": TAB_TOOLS,
                     "shelf": TAB_SHELF, "notes": TAB_NOTES, "focus": TAB_FOCUS, "keys": TAB_KEYS,
-                    "info": TAB_INFO}
+                    "info": TAB_INFO, "tasks": TAB_TASKS, "day": TAB_DAY}
 TAB_NAMES = dict(TAB_KEY_TO_INDEX, sys=TAB_SYSTEM, clipboard=TAB_SHELF,
-                 timer=TAB_FOCUS, automations=TAB_KEYS)
+                 timer=TAB_FOCUS, automations=TAB_KEYS, todo=TAB_TASKS, water=TAB_DAY,
+                 prayer=TAB_DAY)
 MAX_LABELED_TABS = 8          # more visible tabs than this -> icon-only nav buttons
 AUTOHIDE_DELAY_S = 0.7        # cursor away this long -> tuck the island back up
 CLICK_MOVE_THRESHOLD = 4
@@ -68,6 +77,14 @@ class DynamicIslandWindow(QWidget):
             None, clipboard_service=self.clipboard_service, parent=self)
         self.automation_service.island_actions.update(self.island_actions())
         self.info_service = info_service or InfoService(self)
+        self.tasks_service = TasksService(self)
+        self.day_service = DayService(self)
+        self.lyrics_service = LyricsService(self)
+        self.volume_service = VolumeService(self)
+        self.info_service.tasks = self.tasks_service
+        self.info_service.day = self.day_service
+        self.info_service.lyrics = self.lyrics_service
+        self.command_bar = None
 
         # State tracking
         self.is_expanded = False
@@ -96,7 +113,7 @@ class DynamicIslandWindow(QWidget):
         self.compact_h = self.config.get("compact_height", 36)
         self.expanded_w = self.config.get("expanded_width", 490)
         # Shelf / Focus tabs need a little more room for their lists
-        self.expanded_h = max(self.config.get("expanded_height", 200), 210)
+        self.expanded_h = max(self.config.get("expanded_height", 200), 240)
         self.top_offset = self.config.get("anchor_top_offset", 8)
         self.notch_mode = self.config.get("notch_mode", False)
 
@@ -161,6 +178,8 @@ class DynamicIslandWindow(QWidget):
         self.focus_widget = FocusWidget(self.theme, self.timer_service, self.build_service, self)
         self.keys_widget = KeysWidget(self.theme, self.automation_service, self)
         self.info_widget = InfoWidget(self.theme, self.info_service, self)
+        self.tasks_widget = TasksWidget(self.theme, self.tasks_service, self)
+        self.day_widget = DayWidget(self.theme, self.day_service, self)
 
         self.stack.addWidget(self.media_widget) # Index 0
         self.stack.addWidget(self.sys_widget)   # Index 1
@@ -171,6 +190,8 @@ class DynamicIslandWindow(QWidget):
         self.stack.addWidget(self.focus_widget) # Index 6
         self.stack.addWidget(self.keys_widget)  # Index 7
         self.stack.addWidget(self.info_widget)  # Index 8
+        self.stack.addWidget(self.tasks_widget) # Index 9
+        self.stack.addWidget(self.day_widget)   # Index 10
 
         self.exp_layout.addWidget(self.stack)
 
@@ -194,8 +215,8 @@ class DynamicIslandWindow(QWidget):
                 color: {self.theme['text_secondary']};
                 border: 1px solid {self.theme['border_color']};
                 border-radius: 11px;
-                padding: 3px 6px;
-                font-size: 10px;
+                padding: {'3px 10px' if getattr(self, '_nav_icon_only', False) else '3px 6px'};
+                font-size: {'14px' if getattr(self, '_nav_icon_only', False) else '10px'};
                 font-weight: 600;
             }}
             QPushButton:hover {{
@@ -218,7 +239,7 @@ class DynamicIslandWindow(QWidget):
                 item.widget().deleteLater()
         keys = [k for k in self.config.get("tabs_visible", DEFAULT_TABS) if k in TAB_REGISTRY]
         keys = keys or list(DEFAULT_TABS)
-        icon_only = len(keys) > MAX_LABELED_TABS
+        icon_only = self._nav_icon_only = len(keys) > MAX_LABELED_TABS
         self.nav_buttons = {}
         self.nav_order = []
         for pos, key in enumerate(keys, start=1):
@@ -256,6 +277,11 @@ class DynamicIslandWindow(QWidget):
             "focus": lambda minutes: self.timer_service.start(minutes, "Focus"),
             "collapse": self.collapse,
             "through_toggle": self.toggle_through_mode,
+            "command_bar": self.toggle_command_bar,
+            "add_task": lambda phrase="": (self.tasks_service.add(phrase) if phrase.strip()
+                                           else self.open_tab_by_key("tasks")),
+            "water": lambda: self.day_service.add_water(),
+            "pomodoro": lambda: self.timer_service.start_pomodoro(),
         }
 
     def open_customize(self):
@@ -376,6 +402,24 @@ class DynamicIslandWindow(QWidget):
         self.build_service.job_finished.connect(self._on_build_finished)
         self.tools_widget.open_tab_requested.connect(self._switch_tab)
 
+        # Lyrics + real volume
+        self.media_service.media_updated.connect(self.lyrics_service.update_media)
+        self.lyrics_service.line_changed.connect(self.media_widget.set_lyric)
+        self.lyrics_service.line_changed.connect(lambda _l: self.idle_pill.update())
+        self.volume_service.volume_changed.connect(self.media_widget.set_volume)
+        self.volume_service.volume_changed.connect(self.tools_widget.set_volume)
+        self.media_widget.volume_requested.connect(self.volume_service.set_percent)
+        self.media_widget.mute_clicked.connect(self.volume_service.toggle_mute)
+        self.tools_widget.volume_changed.connect(self.volume_service.set_percent)
+        self.volume_service.refresh()
+
+        # Tasks, water, prayer
+        self.tasks_service.reminder.connect(self._on_task_reminder)
+        self.tasks_service.changed.connect(self._sync_task_alert)
+        self.day_service.water_reminder.connect(self._on_water_reminder)
+        self.day_service.prayer_time.connect(self._on_prayer_time)
+        self.day_service.changed.connect(self.idle_pill.update)
+
         # Custom info
         self.sys_service.stats_updated.connect(self.info_service.update_system)
         self.media_service.media_updated.connect(self.info_service.update_media)
@@ -425,6 +469,66 @@ class DynamicIslandWindow(QWidget):
     def _on_build_finished(self, name, duration):
         self.idle_pill.flash(f"✅ {name} · {format_seconds(duration)}", self.theme["success"], 8000)
         self.notify.emit("🔨 Task finished", f"{name} finished after {format_seconds(duration)}.")
+
+    # ---------------------------------------------- Tasks / water / prayer
+    def _on_task_reminder(self, task):
+        self._sync_task_alert()
+        self.idle_pill.flash(f"⏰ {task['title']}", self.theme["warning"], 12000)
+        self.notify.emit("⏰ Reminder", task["title"])
+        if self.config.get("sound_effects", True):
+            QApplication.beep()
+
+    def _sync_task_alert(self):
+        ringing = self.tasks_service.ringing()
+        if ringing:
+            extra = f" +{len(ringing) - 1}" if len(ringing) > 1 else ""
+            self.idle_pill.set_activity("task", f"⏰ {ringing[0]['title']}{extra}", None,
+                                        self.theme["warning"], priority=30)
+        else:
+            self.idle_pill.clear_activity("task")
+        self.idle_pill.update()
+
+    def _on_water_reminder(self):
+        self.idle_pill.flash("💧 Time for some water", self.theme["accent"], 8000)
+        self.notify.emit("💧 Drink water", f"{self.day_service.water_ml} of {self.day_service.water_goal} ml today.")
+
+    def _on_prayer_time(self, name):
+        self.idle_pill.flash(f"🕌 Time for {name}", self.theme["success"], 20000)
+        self.notify.emit("🕌 Prayer time", f"It is time for {name}.")
+        if self.config.get("prayer_pause_media", False) and self.media_service.current_media.get("is_playing"):
+            self.media_service.toggle_play_pause()
+
+    def open_tab_by_key(self, key):
+        self.open_tab(TAB_KEY_TO_INDEX.get(key, TAB_MEDIA))
+        if key == "tasks":
+            self.raise_()
+            self.activateWindow()
+            self.tasks_widget.focus_input()
+
+    def toggle_command_bar(self):
+        if self.command_bar is None:
+            self.command_bar = CommandBar(self.theme, self)
+        self.command_bar.update_theme(self.theme)
+        self.command_bar.toggle()
+
+    # ----------------------------------------- Wheel / arrow page switching
+    def wheelEvent(self, event):
+        if not self.is_expanded or event.angleDelta().y() == 0:
+            return super().wheelEvent(event)
+        w = QApplication.widgetAt(QCursor.pos())
+        while w is not None and w is not self:
+            if isinstance(w, (QAbstractScrollArea, QAbstractSlider, QAbstractSpinBox, QComboBox)):
+                return  # let lists, sliders and editors keep the wheel
+            w = w.parentWidget()
+        self._cycle_tab(-1 if event.angleDelta().y() > 0 else 1)
+        event.accept()
+
+    def keyPressEvent(self, event):
+        if self.is_expanded and event.key() in (Qt.Key.Key_Left, Qt.Key.Key_Right):
+            self._cycle_tab(-1 if event.key() == Qt.Key.Key_Left else 1)
+            event.accept()
+            return
+        super().keyPressEvent(event)
 
     # -------------------------------------------------------- Drag & drop
     def _on_drag_out_started(self):
@@ -728,7 +832,8 @@ class DynamicIslandWindow(QWidget):
             self._tuck()
 
     def _fullscreen_tick(self):
-        enabled = self.config.get("hide_in_fullscreen", True) and win_input.IS_WINDOWS
+        enabled = ((self.config.get("hide_in_fullscreen", True) or self.config.get("hide_for_apps"))
+                   and win_input.IS_WINDOWS)
         if not enabled:
             if self.fullscreen_hidden:
                 self._leave_fullscreen_hide()
@@ -736,7 +841,8 @@ class DynamicIslandWindow(QWidget):
         if self.summoned or self.user_hidden:
             return
         hwnd = int(self.winId()) if self.windowHandle() else None
-        if win_input.fullscreen_app_active(hwnd):
+        apps = [a.lower() for a in self.config.get("hide_for_apps", []) if a]
+        if win_input.fullscreen_app_active(hwnd) or (apps and win_input.foreground_process_name() in apps):
             if not self.fullscreen_hidden:
                 self.fullscreen_hidden = True
                 self.collapse()
@@ -894,6 +1000,8 @@ class DynamicIslandWindow(QWidget):
         # Quick reach actions
         menu.addAction("📥 Open Shelf").triggered.connect(lambda: self.open_tab(TAB_SHELF))
         menu.addAction("📝 Quick Note").triggered.connect(self.quick_note)
+        menu.addAction("✅ Add Task / Reminder").triggered.connect(lambda: self.open_tab_by_key("tasks"))
+        menu.addAction("🔎 Command Bar").triggered.connect(self.toggle_command_bar)
         focus_menu = menu.addMenu("⏱️ Start Focus Timer")
         for minutes in self.config.get("focus_presets_min", [5, 25, 50]):
             focus_menu.addAction(f"{minutes} minutes").triggered.connect(
@@ -960,6 +1068,8 @@ class DynamicIslandWindow(QWidget):
         self.focus_widget.update_theme(self.theme)
         self.keys_widget.update_theme(self.theme)
         self.info_widget.update_theme(self.theme)
+        self.tasks_widget.update_theme(self.theme)
+        self.day_widget.update_theme(self.theme)
         self._style_nav()
         self.update()
 

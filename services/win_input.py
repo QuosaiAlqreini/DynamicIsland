@@ -431,3 +431,16 @@ def mouse_button_down():
     if not IS_WINDOWS:
         return False
     return bool((user32.GetAsyncKeyState(VK_LBUTTON) | user32.GetAsyncKeyState(VK_RBUTTON)) & 0x8000)
+
+
+def foreground_process_name():
+    """Lower-case exe name of the app in front (e.g. 'chrome.exe'), or ''."""
+    if not IS_WINDOWS:
+        return ""
+    try:
+        import psutil
+        pid = wintypes.DWORD()
+        user32.GetWindowThreadProcessId(user32.GetForegroundWindow(), ctypes.byref(pid))
+        return psutil.Process(pid.value).name().lower() if pid.value else ""
+    except Exception:
+        return ""

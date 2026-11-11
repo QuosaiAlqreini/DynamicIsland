@@ -139,6 +139,8 @@ class IdlePillWidget(QWidget):
             return 20
         if slot == "battery_icon":
             return 24
+        if slot in ("water_ring", "battery_ring"):
+            return 18
         text = self._text_for(slot)
         return min(TEXT_MAX_SIDE, painter.fontMetrics().horizontalAdvance(text) + 3) if text else 0
 
@@ -187,6 +189,8 @@ class IdlePillWidget(QWidget):
             self._paint_ai_dot(painter, x, h)
         elif slot == "battery_icon":
             self._paint_battery(painter, x, h)
+        elif slot in ("water_ring", "battery_ring"):
+            self._paint_ring(painter, slot, x, h)
         else:
             text = self._text_for(slot)
             painter.setPen(QColor(self.theme["text_secondary"]))
@@ -196,7 +200,7 @@ class IdlePillWidget(QWidget):
     def _paint_center(self, painter, slot, left, right, w, h):
         if slot in ("none", ""):
             return
-        if slot in ("ai_dot", "battery_icon"):
+        if slot in ("ai_dot", "battery_icon", "water_ring", "battery_ring"):
             cx = int(w / 2 - (10 if slot == "ai_dot" else 12))
             self._paint_slot(painter, slot, cx, 24, h, Qt.AlignmentFlag.AlignCenter)
             return
@@ -219,6 +223,27 @@ class IdlePillWidget(QWidget):
             for i in range(3):
                 bar_h = int(4 + 6 * abs(math.sin(self.wave_phase + i * 0.8)))
                 painter.drawRoundedRect(bar_x + i * 4, int(h / 2 - bar_h / 2), 2, bar_h, 1, 1)
+
+    def _paint_ring(self, painter, slot, x, h):
+        """Small status ring: battery level or today's water intake."""
+        if slot == "water_ring":
+            day = getattr(self.info, "day", None)
+            frac = day.water_fraction if day else 0.0
+            color = QColor(self.theme["accent"])
+        else:
+            frac = self.battery_pct / 100.0
+            color = QColor(self.theme["success"] if self.battery_pct > 20 else self.theme["danger"])
+        track = QColor(self.theme["text_secondary"])
+        track.setAlpha(70)
+        pen = QPen(track, 2.5)
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.setPen(pen)
+        y = int(h / 2 - 8)
+        painter.drawEllipse(x + 1, y, 16, 16)
+        pen.setColor(color)
+        painter.setPen(pen)
+        painter.drawArc(x + 1, y, 16, 16, 90 * 16, -int(max(0.0, min(1.0, frac)) * 360 * 16))
 
     def _paint_ai_dot(self, painter, x, h):
         painter.setPen(Qt.PenStyle.NoPen)

@@ -1,6 +1,6 @@
 import math
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QProgressBar
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QProgressBar, QSlider
 )
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QPainter, QColor, QFont, QBrush, QPen
@@ -9,6 +9,8 @@ class MediaWidget(QWidget):
     play_pause_clicked = pyqtSignal()
     next_clicked = pyqtSignal()
     prev_clicked = pyqtSignal()
+    volume_requested = pyqtSignal(int)
+    mute_clicked = pyqtSignal()
 
     def __init__(self, theme, parent=None):
         super().__init__(parent)
@@ -32,8 +34,8 @@ class MediaWidget(QWidget):
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(16, 12, 16, 12)
-        layout.setSpacing(10)
+        layout.setContentsMargins(16, 10, 16, 6)
+        layout.setSpacing(6)
 
         # Top Bar: Source badge & animated wave
         top_row = QHBoxLayout()
@@ -47,6 +49,7 @@ class MediaWidget(QWidget):
             padding: 2px 8px;
             border-radius: 6px;
         """)
+        self.source_label.setFixedHeight(20)
         top_row.addWidget(self.source_label)
         top_row.addStretch()
 
@@ -92,10 +95,13 @@ class MediaWidget(QWidget):
         """)
         info_col.addWidget(self.title_label)
         info_col.addWidget(self.artist_label)
+        self.lyric_label = QLabel("")
+        self.lyric_label.setStyleSheet(f"color: {self.theme['accent']}; font-size: 11px; font-weight: 600;")
+        info_col.addWidget(self.lyric_label)
         center_row.addLayout(info_col)
         center_row.addStretch()
 
-        layout.addLayout(center_row)
+        layout.addLayout(center_row, 1)
 
         # Progress Bar
         self.progress_bar = QProgressBar()
@@ -164,12 +170,43 @@ class MediaWidget(QWidget):
         self.next_btn.clicked.connect(self.next_clicked.emit)
         ctrl_row.addWidget(self.next_btn)
 
+        # Volume (real Windows master volume)
+        ctrl_row.addSpacing(18)
+        self.mute_btn = QPushButton("🔊")
+        self.mute_btn.setFixedSize(28, 28)
+        self.mute_btn.setStyleSheet(btn_style)
+        self.mute_btn.clicked.connect(self.mute_clicked.emit)
+        ctrl_row.addWidget(self.mute_btn)
+        self.vol_slider = QSlider(Qt.Orientation.Horizontal)
+        self.vol_slider.setRange(0, 100)
+        self.vol_slider.setFixedWidth(110)
+        self.vol_slider.setStyleSheet(f"""
+            QSlider::groove:horizontal {{ height: 4px; background: {self.theme['bg_secondary']}; border-radius: 2px; }}
+            QSlider::sub-page:horizontal {{ background: {self.theme['accent']}; border-radius: 2px; }}
+            QSlider::handle:horizontal {{ background: {self.theme['text_primary']}; width: 12px;
+                                          margin: -4px 0; border-radius: 6px; }}
+        """)
+        self.vol_slider.valueChanged.connect(self._on_volume_slider)
+        ctrl_row.addWidget(self.vol_slider)
+
         layout.addLayout(ctrl_row)
 
     def _tick_visualizer(self):
         if self.media_info.get("is_playing", False) and self.isVisible():
             self.visualizer_phase = (self.visualizer_phase + 0.3) % (2 * math.pi)
             self.update()
+
+    def set_lyric(self, line):
+        self.lyric_label.setText(("♪ " + line[:58]) if line else "")
+
+    def set_volume(self, percent, muted):
+        self.vol_slider.blockSignals(True)
+        self.vol_slider.setValue(percent)
+        self.vol_slider.blockSignals(False)
+        self.mute_btn.setText("🔇" if muted or percent == 0 else "🔊")
+
+    def _on_volume_slider(self, value):
+        self.volume_requested.emit(value)
 
     def update_media(self, media_data):
         self.media_info = media_data
@@ -184,7 +221,7 @@ class MediaWidget(QWidget):
         dur = media_data.get("duration_sec", 180)
         pos = media_data.get("position_sec", 0)
         pct = int((pos / dur) * 100) if dur > 0 else 0
-        self.progress_bar.setValue(pct if pct > 0 else 30)
+        self.progress_bar.setValue(pct)
 
     def update_theme(self, theme):
         self.theme = theme

@@ -14,6 +14,7 @@ class FocusTimerService(QObject):
         self.total_sec = 0
         self.remaining_sec = 0
         self.label = "Focus"
+        self.plan = []   # remaining (minutes, label) Pomodoro phases
         self._end_ts = None
         self.timer = QTimer(self)
         self.timer.setInterval(500)
@@ -27,7 +28,17 @@ class FocusTimerService(QObject):
     def active(self):
         return self.remaining_sec > 0
 
-    def start(self, minutes, label="Focus"):
+    def start_pomodoro(self, work=25, short_break=5, long_break=15, rounds=4):
+        """Work / break cycles that follow each other automatically."""
+        plan = []
+        for i in range(1, rounds + 1):
+            plan.append((work, f"Focus {i}/{rounds}"))
+            plan.append((long_break if i == rounds else short_break, "Long break" if i == rounds else "Break"))
+        first = plan.pop(0)
+        self.start(first[0], first[1], _plan=plan)
+
+    def start(self, minutes, label="Focus", _plan=None):
+        self.plan = list(_plan or [])
         minutes = max(0.1, float(minutes))
         self.total_sec = int(minutes * 60)
         self.remaining_sec = self.total_sec
@@ -71,6 +82,19 @@ class FocusTimerService(QObject):
         self._emit()
 
     def stop(self):
+        self.plan = []
+        self._end_stop()
+
+    def skip(self):
+        """Jump to the next Pomodoro phase (or stop when there is none)."""
+        plan = self.plan
+        if plan:
+            nxt = plan.pop(0)
+            self.start(nxt[0], nxt[1], _plan=plan)
+        else:
+            self.stop()
+
+    def _end_stop(self):
         self._end_ts = None
         self.timer.stop()
         self.remaining_sec = 0
@@ -82,9 +106,12 @@ class FocusTimerService(QObject):
             return
         self.remaining_sec = max(0, int(round(self._end_ts - time.monotonic())))
         if self.remaining_sec <= 0:
-            label = self.label
-            self.stop()
+            label, plan = self.label, self.plan
+            self._end_stop()
             self.finished.emit(label)
+            if plan:
+                nxt = plan.pop(0)
+                self.start(nxt[0], nxt[1], _plan=plan)
             return
         self._emit()
 

@@ -87,3 +87,12 @@ Started: 2026-10-31 16:50
 - **Implemented:** through mode (pill ignores the mouse, cursor polled at 50 ms; edge/dwell/manual open; click blocks opening; drag-in override), island_offset_x, hotstrings now opt-in, selftest stall measurement, sturdier run.bat (auto git pull).
 - **Learnings:** a click-through window gets no enter/leave/drag events, so drive everything from a cursor-polling state machine and keep it a pure step function (pos, button, time) for tests; re-apply WS_EX_TRANSPARENT in showEvent.
 ---
+
+## 2026-11-11 - US-023 (Nusa + Island feature batch, v1.5.0)
+- **Implemented:** Tasks tab with phrase parsing/reminders/snooze, Day tab (water ring, prayer times + sun arc), Pomodoro rounds, synced lyrics (LRCLIB), real volume (pycaw worker thread), command bar (Alt+Space), wheel/arrow paging, hide-for-apps, new pill items (rings, next task, next prayer, lyrics, water).
+- **Learnings:**
+  - island_actions() is built before later services exist in __init__: use lambdas, not bound methods of not-yet-created services.
+  - In through mode the cursor tick collapses an island that was expanded programmatically with the cursor elsewhere; set `summoned` for programmatic opens that should stay.
+  - Prayer maths: Umm al-Qura = Fajr 18.5°, Isha = Maghrib + 90 min; use night/7 fallback when twilight angle is never reached.
+- **Not done yet from those apps:** screenshots with markup, OCR, colour picker, screen recording, notification mirroring, Wi-Fi/Bluetooth/VPN controls, mic/camera indicators, island size scaling, weather, animated characters.
+---

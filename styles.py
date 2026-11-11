@@ -159,6 +159,13 @@ def list_style(theme):
         QListWidget::item:hover {{
             background: {theme['bg_secondary']};
         }}
+        QListWidget::indicator {{
+            width: 12px; height: 12px; border-radius: 4px;
+            border: 1px solid {theme['text_secondary']}; background: transparent;
+        }}
+        QListWidget::indicator:checked {{
+            background: {theme['accent']}; border-color: {theme['accent']};
+        }}
     """
 
 

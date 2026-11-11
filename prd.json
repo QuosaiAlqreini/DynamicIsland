@@ -313,6 +313,24 @@
       "priority": 22,
       "passes": true,
       "notes": "island_window._through_step (unit-tested), win_input.set_click_through"
+    },
+    {
+      "id": "US-023",
+      "title": "Daily-life features: tasks, water, prayer times, Pomodoro, lyrics, volume, command bar",
+      "description": "Feature parity push with Nusa (to-do, water, prayer, Pomodoro, lyrics, volume, paging) and Island (command bar, per-app hide).",
+      "acceptanceCriteria": [
+        "Task phrases parsed; reminder fires once; snooze; pill alert until handled",
+        "Water log per day with ring; optional reminders",
+        "Prayer times computed locally within 3 min of published Riyadh times; high-latitude fallback",
+        "Pomodoro rounds auto-advance and can be skipped",
+        "LRCLIB synced lyrics fetched off the UI thread; position interpolated",
+        "Master volume via pycaw on a worker thread with key fallback",
+        "Command bar: apps, calculator (safe AST eval), timers, tasks, notes, text tools, commands, web",
+        "Wheel/arrow paging; hide for listed apps"
+      ],
+      "priority": 23,
+      "passes": true,
+      "notes": "services/{tasks_service,day_service,prayer,lyrics_service,volume_service,commands}.py, modules/{tasks_widget,day_widget,command_bar}.py"
     }
   ]
 }

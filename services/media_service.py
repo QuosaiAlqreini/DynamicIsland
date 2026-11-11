@@ -1,4 +1,5 @@
 import asyncio
+import datetime
 import threading
 from PyQt6.QtCore import QObject, pyqtSignal, QTimer
 
@@ -113,6 +114,15 @@ class MediaService(QObject):
             timeline = session.get_timeline_properties()
             pos = timeline.position.total_seconds() if timeline and timeline.position else 0
             dur = timeline.end_time.total_seconds() if timeline and timeline.end_time else 180
+            # Players report position only now and then: add the time since that report
+            try:
+                updated = timeline.last_updated_time if timeline else None
+                if is_playing and updated is not None and updated.year > 2000:
+                    elapsed = (datetime.datetime.now(datetime.timezone.utc) - updated).total_seconds()
+                    if 0 <= elapsed < max(dur, 1):
+                        pos = min(pos + elapsed, dur)
+            except Exception:
+                pass
 
             app_id = session.source_app_user_model_id or "Player"
             app_name = app_id.split("!")[-1] if "!" in app_id else app_id
@@ -131,6 +141,7 @@ class MediaService(QObject):
                 "has_media": True,
                 "source": app_name,
                 "position_sec": int(pos),
+                "position": float(pos),
                 "duration_sec": int(dur) if dur > 0 else 180
             }
         except Exception:

@@ -231,6 +231,14 @@ class QuickToolsWidget(QWidget):
             launchers.pop(index)
             self._save_launchers(launchers)
 
+    def set_volume(self, percent, muted):
+        self.slider.blockSignals(True)
+        self.slider.setValue(percent)
+        self.slider.blockSignals(False)
+        self.current_volume = percent
+        self.vol_text.setText(f"{percent}%")
+        self.vol_icon.setText("🔇" if muted or percent == 0 else ("🔉" if percent < 50 else "🔊"))
+
     def _on_vol_changed(self, val):
         self.current_volume = val
         self.vol_text.setText(f"{val}%")

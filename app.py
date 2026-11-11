@@ -99,6 +99,11 @@ def main():
     if hotkey_text and hotkey_service.register(1, hotkey_text):
         hotkey_service.activated.connect(lambda hid: island.summon() if hid == 1 else None)
 
+    # Command bar (default Alt+Space)
+    bar_hotkey = config.get("command_bar_hotkey", "Alt+Space")
+    if bar_hotkey and hotkey_service.register(2, bar_hotkey):
+        hotkey_service.activated.connect(lambda hid: island.toggle_command_bar() if hid == 2 else None)
+
     # AutoHotkey-style automations: user hotkeys + hotstrings
     automation_service.apply()
     app.aboutToQuit.connect(automation_service.shutdown)
@@ -165,6 +170,8 @@ def main():
 
     tray_menu.addAction("📥 Open Shelf").triggered.connect(lambda: island.open_tab(TAB_SHELF))
     tray_menu.addAction("📝 Quick Note").triggered.connect(island.quick_note)
+    tray_menu.addAction("✅ Add Task / Reminder").triggered.connect(lambda: island.open_tab_by_key("tasks"))
+    tray_menu.addAction("🔎 Command Bar").triggered.connect(island.toggle_command_bar)
     tray_menu.addAction("🎨 Customize Island…").triggered.connect(island.open_customize)
     tray_menu.addAction("👻 Click-Through Pill on / off").triggered.connect(lambda: island.toggle_through_mode())
     tray_menu.addAction("⌨️ Automations & Hotkeys…").triggered.connect(island.open_automations)

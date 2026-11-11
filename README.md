@@ -46,6 +46,22 @@ Right-click the island (or the tray icon) ➔ **`🎨 Customize Island…`**. A 
   * **Hide at the top:** the island tucks away above the screen and slides down when your cursor touches the top edge near it. Optionally it peeks down for finished timers, builds and alerts. Quick toggle: right-click ➔ `🫥 Hide at Top`.
   * Hover/click-to-open, notch mode and theme are all in one place.
 
+### 🌙 Daily Life: Tasks, Water, Prayer Times, Pomodoro, Lyrics & Command Bar (NEW in 1.5)
+* **✅ Tasks & reminders:** type a task the way you'd say it: `Call mom at 17:30`, `Stretch in 20m`, `Report tomorrow 9am`. When it's due, the pill shows it, Windows shows a notification, and you can snooze it (10 min or 1 hour) or tick it off. Tasks sort by time.
+* **💧 Water tracker:** a ring fills as you log glasses toward your daily goal, with optional reminders. Put the ring in the pill from Customize.
+* **🕌 Prayer times (optional, off by default):** pick your city or enter coordinates. Times are calculated on your PC with nothing sent anywhere, shown with a sun arc, with a reminder at each prayer and an option to pause music. Supports Umm al-Qura, MWL, ISNA, Egyptian and Karachi methods, and Hanafi Asr. Times use your laptop's time zone.
+* **🍅 Pomodoro:** the 🍅 button in Focus runs 4 rounds of 25 min focus with 5 min breaks and a long break at the end, moving on automatically. Click it again to skip a phase.
+* **🎵 Synced lyrics and real volume:** the Media tab shows the line being sung (from the open LRCLIB database; only the song title and artist are sent, and you can turn it off in Customize). The volume slider and mute button now control the real Windows volume.
+* **🔎 Command bar (`Alt+Space`):** one box for everything:
+  * type an app name to launch it
+  * `2*(3+4)` or `sqrt(16)` to calculate (Enter copies the answer)
+  * `timer 10m`, `pomodoro`, `water`
+  * `remind Call mom at 17:30`, `note buy milk`
+  * `upper`, `lower`, `base64`, `json`, `urlencode`… to transform whatever is on your clipboard
+  * `> ipconfig` to run a command, a tab or automation name to open it, or anything else to search the web
+* **Mouse wheel and ← → keys** switch pages while the island is open.
+* **Hide for chosen apps:** list programs (e.g. `vlc.exe`) in Customize → Visibility and the island hides while one is in front.
+
 ### 3. 🧲 Notch Productivity: Shelf, Clipboard, Notes, Focus & Builds (NEW!)
 Make the island the one place you reach for, instead of hunting through windows.
 * **📥 Shelf (drop tray):** Drag files onto the island from anywhere; it pops open on the Shelf tab. Drag them back out into mail, chat, a browser upload or another folder later. Open, show in Explorer, copy path, or remove. The pill shows a badge with how many files are parked.
@@ -221,6 +237,9 @@ To achieve the clean macOS look without duplicated taskbar icons:
 | **Click-through on / off** | `Ctrl+Alt+G`, or tray ➔ `👻 Click-Through Pill` |
 | **Hide at the top** | Right-click ➔ `🫥 Hide at Top`, then touch the top edge to show it |
 | **Jump to a tab** | `Ctrl+1..9`, `Ctrl+Tab` to cycle, `Esc` to close |
+| **Command bar** | `Alt+Space` |
+| **Add a task / reminder** | `✅ Tasks` tab, or command bar: `remind Call mom at 17:30` |
+| **Switch pages** | Mouse wheel or `←` `→` while the island is open |
 | **Edit automations** | `⌨️ Keys` tab ➔ `✏️ Edit`, or right-click ➔ `⌨️ Automations & Hotkeys…` |
 | **Play / Pause** | Middle-click the island |
 | **Collapse Dashboard** | Move your cursor away, click elsewhere, or press `Esc` |

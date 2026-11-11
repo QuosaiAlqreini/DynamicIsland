@@ -68,7 +68,27 @@ DEFAULT_CONFIG = {
     "pill_left": "ai_dot",
     "pill_center": "clock",
     "pill_right": "battery_icon",
-    "tabs_visible": ["media", "shelf", "notes", "focus", "keys", "ai", "system", "tools"],
+    "tabs_visible": ["media", "shelf", "tasks", "notes", "focus", "day", "keys", "ai", "system", "tools"],
+    "hide_for_apps": [],               # exe names: hide the island while one is in front
+    # --- Tasks, water, prayer, pomodoro, lyrics, command bar ---
+    "tasks": [],
+    "water_goal_ml": 2000,
+    "water_glass_ml": 250,
+    "water_remind_min": 0,
+    "water_log": {},
+    "prayer_enabled": False,
+    "prayer_city": "Riyadh",
+    "prayer_lat": 24.7136,
+    "prayer_lng": 46.6753,
+    "prayer_method": "umm_al_qura",
+    "prayer_asr_hanafi": False,
+    "prayer_pause_media": False,
+    "pomodoro_work_min": 25,
+    "pomodoro_break_min": 5,
+    "pomodoro_long_break_min": 15,
+    "pomodoro_rounds": 4,
+    "lyrics_enabled": True,            # looks songs up on lrclib.net (title + artist only)
+    "command_bar_hotkey": "Alt+Space",
     "info_items": [],
     # --- AutoHotkey-style automation ---
     "launch_at_login": False,

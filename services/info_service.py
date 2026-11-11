@@ -38,6 +38,12 @@ PILL_BUILTINS = [
     ("cpu", "CPU usage"),
     ("ram", "RAM usage"),
     ("media_title", "Now playing"),
+    ("lyrics", "Song lyrics (current line)"),
+    ("next_task", "Next task / reminder"),
+    ("next_prayer", "Next prayer"),
+    ("water", "Water today (text)"),
+    ("water_ring", "Water ring"),
+    ("battery_ring", "Battery ring"),
 ]
 CREATE_NO_WINDOW = 0x08000000
 
@@ -105,6 +111,7 @@ class InfoService(QObject):
         self._running = set()
         self.sys = {}
         self.media = {}
+        self.lyrics = self.tasks = self.day = None   # set by the island
         self.timer = QTimer(self)
         self.timer.setInterval(1000)
         self.timer.timeout.connect(self.refresh)
@@ -133,6 +140,18 @@ class InfoService(QObject):
 
     def builtin_text(self, key):
         s = self.sys
+        if key == "lyrics":
+            return self.lyrics.line if self.lyrics else ""
+        if key == "next_task" and self.tasks:
+            task = self.tasks.next_due()
+            if not task:
+                return ""
+            from services.tasks_service import due_label
+            return f"{due_label(task['due'])} {task['title']}"
+        if key == "next_prayer":
+            return self.day.next_prayer_text() if self.day else ""
+        if key == "water" and self.day:
+            return f"💧{self.day.water_ml / 1000:.2g}/{self.day.water_goal / 1000:.2g}L"
         if key == "clock":
             return time.strftime("%H:%M")
         if key == "clock_seconds":

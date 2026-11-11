@@ -115,7 +115,7 @@ class CustomizeDialog(QDialog):
         self._original_items = [dict(i) for i in self.items]
 
         self.setWindowTitle("Customize Dynamic Island")
-        self.resize(660, 620)
+        self.resize(680, 690)
         self.setStyleSheet(dialog_style(theme))
 
         lay = QVBoxLayout(self)
@@ -343,6 +343,13 @@ class CustomizeDialog(QDialog):
         self.chk_fullscreen.setChecked(self.config.get("hide_in_fullscreen", True))
         lay.addWidget(self.chk_fullscreen)
 
+        arow = QHBoxLayout()
+        arow.addWidget(QLabel("Also hide while these apps are in front"))
+        self.hide_apps = QLineEdit(", ".join(self.config.get("hide_for_apps", [])))
+        self.hide_apps.setPlaceholderText("e.g. vlc.exe, powerpnt.exe")
+        arow.addWidget(self.hide_apps, 1)
+        lay.addLayout(arow)
+
         lay.addSpacing(6)
         lay.addWidget(QLabel("<b>Don't block what's underneath</b>"))
         self.chk_through = QCheckBox("Click-through pill: clicks go to the tab / button under it (it fades while the cursor is there)")
@@ -382,6 +389,9 @@ class CustomizeDialog(QDialog):
         self.chk_click = QCheckBox("Click the pill to open it (when click-through is off)")
         self.chk_click.setChecked(self.config.get("click_to_expand", True))
         lay.addWidget(self.chk_click)
+        self.chk_lyrics = QCheckBox("Show synced song lyrics (looks up the song title and artist on lrclib.net)")
+        self.chk_lyrics.setChecked(self.config.get("lyrics_enabled", True))
+        lay.addWidget(self.chk_lyrics)
         self.chk_notch = QCheckBox("Notch mode: sit flush against the top edge")
         self.chk_notch.setChecked(self.config.get("notch_mode", False))
         lay.addWidget(self.chk_notch)
@@ -430,6 +440,8 @@ class CustomizeDialog(QDialog):
         c.set("visibility_mode", "autohide" if self.rb_autohide.isChecked() else "always")
         c.set("peek_on_activity", self.chk_peek.isChecked())
         c.set("hide_in_fullscreen", self.chk_fullscreen.isChecked())
+        c.set("hide_for_apps", [a.strip().lower() for a in self.hide_apps.text().split(",") if a.strip()])
+        c.set("lyrics_enabled", self.chk_lyrics.isChecked())
         c.set("through_mode", self.chk_through.isChecked())
         c.set("through_open", self.open_combo.currentData())
         c.set("island_offset_x", self.offset_spin.value())
