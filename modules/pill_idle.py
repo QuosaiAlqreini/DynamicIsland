@@ -46,10 +46,15 @@ class IdlePillWidget(QWidget):
 
         # Clock timer (every second so "clock with seconds" works)
         self.clock_timer = QTimer(self)
-        self.clock_timer.timeout.connect(lambda: self.update() if self.isVisible() else None)
+        self.clock_timer.timeout.connect(self._clock_tick)
         self.clock_timer.start(1000)
 
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+
+    def _clock_tick(self):
+        # Bound method (not a lambda): Qt drops the connection when this widget is destroyed
+        if self.isVisible():
+            self.update()
 
     # ------------------------------------------------------------- config
     def set_slots(self, left, center, right):

@@ -110,13 +110,18 @@ def _settle(qapp, seconds=0.6):
         qapp.processEvents()
 
 
+_KEEP_ALIVE = []
+
+
 def _island():
     from services.media_service import MediaService
     from services.system_service import SystemMonitorService
     from services.ai_service import AIService
     from services.taskbar_service import TaskbarService
     from island_window import DynamicIslandWindow
-    return DynamicIslandWindow(MediaService(), SystemMonitorService(), AIService(), TaskbarService())
+    _w = DynamicIslandWindow(MediaService(), SystemMonitorService(), AIService(), TaskbarService())
+    _KEEP_ALIVE.append(_w)
+    return _w
 
 
 def test_customization_applies(qapp):

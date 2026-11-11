@@ -687,7 +687,8 @@ class DynamicIslandWindow(QWidget):
 
     # --------------------------------------------- keep apps below the notch
     def _wants_reserved_space(self):
-        return (bool(self.config.get("reserve_top_space", True)) and win_input.IS_WINDOWS
+        native = QApplication.platformName() == "windows"   # never with test/offscreen windows
+        return (bool(self.config.get("reserve_top_space", True)) and win_input.IS_WINDOWS and native
                 and not self.user_hidden and not self.fullscreen_hidden and not self.tucked
                 and not self._autohide_enabled() and self.isVisible())
 
@@ -927,7 +928,11 @@ class DynamicIslandWindow(QWidget):
             return
         self.tucked = True
         self._away_since = None
-        self._glide_out(on_done=lambda: None if self.tucked else self._glide_in(), duration=300)
+        self._glide_out(on_done=self._after_tuck, duration=300)
+
+    def _after_tuck(self):
+        if not self.tucked:      # revealed again while sliding away
+            self._glide_in()
 
     def _reveal(self, animate=True):
         if self.user_hidden or self.fullscreen_hidden:
@@ -1018,7 +1023,9 @@ class DynamicIslandWindow(QWidget):
         if glide is not None and glide.state() == glide.State.Running:
             glide.stop()               # a new move wins over a show/hide glide
             self.setWindowOpacity(1.0)
-        self.anim = QPropertyAnimation(self, b"geometry")
+        if old is not None:
+            old.deleteLater()
+        self.anim = QPropertyAnimation(self, b"geometry", self)
         if on_done is not None:
             self.anim.finished.connect(on_done)
         grows = target_rect.width() * target_rect.height() > self.width() * self.height() * 1.5
@@ -1046,15 +1053,17 @@ class DynamicIslandWindow(QWidget):
         end = QRect(start.x(), self._hidden_y(start.height()), start.width(), start.height())
         self.glide = self._glide_group(start, end, self.windowOpacity(), 0.0, duration,
                                        QEasingCurve.Type.InCubic)
-
-        def finish():
-            self.hide()
-            self.setWindowOpacity(1.0)
-            self.update_reserved_space()     # give the space back while hidden
-            if on_done:
-                on_done()
-        self.glide.finished.connect(finish)
+        self._glide_done = on_done
+        self.glide.finished.connect(self._glide_out_finished)
         self.glide.start()
+
+    def _glide_out_finished(self):
+        self.hide()
+        self.setWindowOpacity(1.0)
+        self.update_reserved_space()     # give the space back while hidden
+        done, self._glide_done = getattr(self, "_glide_done", None), None
+        if done:
+            done()
 
     def _glide_in(self, duration=340):
         """Appear from the top edge: slide down while fading in."""
@@ -1069,7 +1078,11 @@ class DynamicIslandWindow(QWidget):
         QTimer.singleShot(0, self.update_reserved_space)
 
     def _glide_group(self, start, end, op_from, op_to, duration, curve):
-        group = QParallelAnimationGroup()
+        old = getattr(self, "glide", None)
+        if old is not None:
+            old.stop()
+            old.deleteLater()
+        group = QParallelAnimationGroup(self)   # owned by the island: never outlives it
         move = QPropertyAnimation(self, b"geometry")
         move.setStartValue(start)
         move.setEndValue(end)
