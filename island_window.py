@@ -78,7 +78,9 @@ def notch_path(w, h, expanded=False):
 
 # Extra room per size choice: (pill width, pill height, panel width, panel height)
 SIZE_PROFILES = {"compact": (0, 0, 0, 0), "comfortable": (30, 4, 24, 14), "roomy": (70, 8, 60, 30)}
-NOTCH_EXTRA = (50, 4, 2 * 14 + 8, 10)   # the notch needs room for its curved shoulders
+NOTCH_EXTRA = (50, 0, 2 * 14 + 8, 10)   # the notch needs width for its curved shoulders
+# The folded notch is slim, like a real one: total height per size choice
+NOTCH_HEIGHTS = {"compact": 24, "comfortable": 28, "roomy": 32}
 
 MAX_LABELED_TABS = 8          # more visible tabs than this -> icon-only nav buttons
 AUTOHIDE_DELAY_S = 0.7        # cursor away this long -> tuck the island back up
@@ -345,6 +347,7 @@ class DynamicIslandWindow(QWidget):
             self._animate_to(QRect(self._centered_x(self.compact_w), self._rest_y(),
                                    self.compact_w, self.compact_h))
         self.resizeEvent(None)
+        self.update_reserved_space()
         self.update()
 
     def rebind_core_hotkeys(self):
@@ -676,9 +679,36 @@ class DynamicIslandWindow(QWidget):
             dw, dh, dew, deh = dw + nw, dh + nh, dew + new, deh + neh
         self.base_compact_w = int(self.config.get("compact_width", 200)) + dw
         self.compact_h = int(self.config.get("compact_height", 36)) + dh
+        if self.notch_mode:
+            self.compact_h = NOTCH_HEIGHTS.get(self.config.get("island_size", "comfortable"), 28)
         self.expanded_w = int(self.config.get("expanded_width", 490)) + dew
         # Shelf / Focus tabs need a little more room for their lists
         self.expanded_h = max(int(self.config.get("expanded_height", 200)), 240) + deh
+
+    # --------------------------------------------- keep apps below the notch
+    def _wants_reserved_space(self):
+        return (bool(self.config.get("reserve_top_space", True)) and win_input.IS_WINDOWS
+                and not self.user_hidden and not self.fullscreen_hidden and not self.tucked
+                and not self._autohide_enabled() and self.isVisible())
+
+    def update_reserved_space(self):
+        """Reserve a strip at the top so maximized windows start below the notch/island."""
+        if not hasattr(self, "reservation"):
+            from services.appbar import TopReservation
+            self.reservation = TopReservation()
+            # A hidden helper window owns the reservation, so the island itself can move freely
+            self._appbar_owner = QWidget(None, Qt.WindowType.Tool)
+            self._appbar_owner.winId()
+        if not self._wants_reserved_space() or not self.windowHandle():
+            self.reservation.release()
+            return
+        logical = self.compact_h if self.notch_mode else self.top_offset + self.compact_h + 4
+        ratio = self.windowHandle().devicePixelRatio() or 1.0
+        self.reservation.reserve(int(self._appbar_owner.winId()), int(self.winId()), round(logical * ratio))
+
+    def release_reserved_space(self):
+        if hasattr(self, "reservation"):
+            self.reservation.release()
 
     def _activity_extra(self):
         return 90 if self.idle_pill.current_activity() else 0
@@ -742,6 +772,9 @@ class DynamicIslandWindow(QWidget):
         self.fullscreen_timer.start()
         self._apply_visibility_mode()
 
+    def showEvent_reserve(self):
+        QTimer.singleShot(0, self.update_reserved_space)
+
     def _autohide_enabled(self):
         return self.config.get("visibility_mode", "always") == "autohide"
 
@@ -786,6 +819,7 @@ class DynamicIslandWindow(QWidget):
         # The native window may be new: re-apply the click-through style
         if self.windowHandle():
             win_input.set_click_through(int(self.winId()), self._passthrough)
+        self.showEvent_reserve()
 
     def _hot_zone(self):
         """Pill area plus the strip between it and the top edge of the screen."""
@@ -874,6 +908,7 @@ class DynamicIslandWindow(QWidget):
             self._animate_to(QRect(self._centered_x(self.compact_w), self._rest_y(),
                                    self.compact_w, self.compact_h))
         self.update()
+        self.update_reserved_space()
         self.idle_pill.flash("📱 Notch" if self.notch_mode else "🏝️ Island", self.theme["accent"], 1500)
 
     def set_user_hidden(self, hidden):
@@ -1015,6 +1050,7 @@ class DynamicIslandWindow(QWidget):
         def finish():
             self.hide()
             self.setWindowOpacity(1.0)
+            self.update_reserved_space()     # give the space back while hidden
             if on_done:
                 on_done()
         self.glide.finished.connect(finish)
@@ -1030,6 +1066,7 @@ class DynamicIslandWindow(QWidget):
         self.show()
         self.glide = self._glide_group(start, end, 0.0, 1.0, duration, QEasingCurve.Type.OutCubic)
         self.glide.start()
+        QTimer.singleShot(0, self.update_reserved_space)
 
     def _glide_group(self, start, end, op_from, op_to, duration, curve):
         group = QParallelAnimationGroup()

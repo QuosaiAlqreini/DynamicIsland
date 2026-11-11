@@ -106,6 +106,9 @@ def main():
     # AutoHotkey-style automations: user hotkeys + hotstrings
     automation_service.apply()
     app.aboutToQuit.connect(automation_service.shutdown)
+    app.aboutToQuit.connect(island.release_reserved_space)
+    import atexit
+    atexit.register(island.release_reserved_space)
     app.aboutToQuit.connect(hotkey_service.unregister_all)
 
     # Initialize System Tray

@@ -60,6 +60,7 @@ DEFAULT_CONFIG = {
     "hide_in_fullscreen": True,
     "peek_on_activity": True,          # auto-hide mode: slide down for timers/builds/alerts
     "reveal_zone_px": 220,             # half-width of the top-edge hot zone around the island
+    "reserve_top_space": True,         # maximized windows start below the notch / island
     "through_mode": True,              # clicks pass through the folded pill
     "through_open": "edge",            # "edge" (push cursor to top edge) | "dwell" | "manual"
     "through_dwell_ms": 350,

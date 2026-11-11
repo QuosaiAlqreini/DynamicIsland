@@ -560,7 +560,8 @@ def test_notch_is_roomier_and_tabs_show_names(qapp):
     island_size = (w.base_compact_w, w.compact_h, w.expanded_w, w.expanded_h)
     w.set_style(True)
     notch_size = (w.base_compact_w, w.compact_h, w.expanded_w, w.expanded_h)
-    assert all(n > i for n, i in zip(notch_size, island_size))
+    assert notch_size[0] > island_size[0] and notch_size[2] > island_size[2]   # wider, roomier panel
+    assert notch_size[1] <= 32 and notch_size[1] < island_size[1]             # but a slim folded notch
     w.set_style(False)
     w.config.set("tabs_visible", ["media", "shelf", "tasks", "notes", "focus", "day", "keys", "ai", "system", "tools"])
     w.apply_customization()
@@ -568,3 +569,48 @@ def test_notch_is_roomier_and_tabs_show_names(qapp):
     w._switch_tab(TAB_TASKS, save=False)
     assert "Tasks" in w.nav_buttons[TAB_TASKS].text()        # open tab shows its name
     assert w.nav_buttons[w.nav_order[0]].text().strip() == "🎵"   # others stay as icons
+
+
+_APPBAR_PROBE = r"""
+import os, sys, time
+sys.path.insert(0, os.getcwd())
+from PyQt6.QtWidgets import QApplication
+app = QApplication([])
+from config import ConfigManager
+c = ConfigManager(); c.set("notch_mode", True); c.set("reserve_top_space", True); c.set("visibility_mode", "always")
+from services.appbar import work_area_top
+before = work_area_top()
+from services.media_service import MediaService
+from services.system_service import SystemMonitorService
+from services.ai_service import AIService
+from services.taskbar_service import TaskbarService
+from island_window import DynamicIslandWindow
+w = DynamicIslandWindow(MediaService(), SystemMonitorService(), AIService(), TaskbarService())
+w.show()
+end = time.monotonic() + 1.5
+while time.monotonic() < end:
+    app.processEvents(); time.sleep(0.02)
+w.update_reserved_space()
+if not w.reservation.registered:
+    print("NOSHELL", flush=True); sys.exit(0)
+during = work_area_top()
+w.release_reserved_space()
+time.sleep(0.3)
+after = work_area_top()
+print("WORKAREA", before, during, after, flush=True)
+"""
+
+
+@windows_only
+def test_notch_reserves_space_and_gives_it_back():
+    import subprocess
+    env = dict(os.environ, QT_QPA_PLATFORM="windows")
+    out = subprocess.run([sys.executable, "-c", _APPBAR_PROBE], capture_output=True, text=True,
+                         timeout=60, env=env, cwd=ROOT)
+    print(out.stdout, out.stderr)
+    if "NOSHELL" in out.stdout:
+        pytest.skip("no Windows shell/taskbar on this machine")
+    assert out.returncode == 0, out.stdout + out.stderr
+    before, during, after = map(int, out.stdout.split("WORKAREA")[1].split())
+    assert during > before, "maximized windows should start below the notch"
+    assert after == before, "space must be given back on exit"
