@@ -95,19 +95,13 @@ def main():
 
     # Global hotkey: summon the island from anywhere (default Ctrl+Alt+Space)
     config = ConfigManager()
-    hotkey_problems = []   # shortcuts another app already owns: tell the user instead of failing silently
+    # Open island (id 1) and command bar (id 2); can be changed live from Customize → Shortcuts
     hotkey_text = config.get("global_hotkey", "Ctrl+Alt+Space")
-    if hotkey_text and hotkey_service.register(1, hotkey_text):
-        hotkey_service.activated.connect(lambda hid: island.summon() if hid == 1 else None)
-    elif hotkey_text and hotkey_service.available:
-        hotkey_problems.append(f"Open island: {hotkey_text}")
-
-    # Command bar (default Alt+Space)
-    bar_hotkey = config.get("command_bar_hotkey", "Alt+Space")
-    if bar_hotkey and hotkey_service.register(2, bar_hotkey):
-        hotkey_service.activated.connect(lambda hid: island.toggle_command_bar() if hid == 2 else None)
-    elif bar_hotkey and hotkey_service.available:
-        hotkey_problems.append(f"Command bar: {bar_hotkey}")
+    island.hotkey_service = hotkey_service
+    hotkey_service.activated.connect(lambda hid: island.summon() if hid == 1 else None)
+    hotkey_service.activated.connect(lambda hid: island.toggle_command_bar() if hid == 2 else None)
+    # shortcuts another app already owns: tell the user instead of failing silently
+    hotkey_problems = island.rebind_core_hotkeys()
 
     # AutoHotkey-style automations: user hotkeys + hotstrings
     automation_service.apply()

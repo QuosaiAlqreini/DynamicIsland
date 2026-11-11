@@ -46,6 +46,13 @@ Right-click the island (or the tray icon) ➔ **`🎨 Customize Island…`**. A 
   * **Hide at the top:** the island tucks away above the screen and slides down when your cursor touches the top edge near it. Optionally it peeks down for finished timers, builds and alerts. Quick toggle: right-click ➔ `🫥 Hide at Top`.
   * Hover/click-to-open, notch mode and theme are all in one place.
 
+### 🪄 Smooth & easy (NEW in 1.6)
+* **Roomier, smoother notch:** the notch has more space, soft curved shoulders and no outline, and its content stays clear of the curves. Choose **Compact / Comfortable / Roomy** size.
+* **Gentle motion:** the island opens with a soft spring and closes smoothly. Hiding, auto-hide and full screen all glide up into the top edge and fade, and it slides back down when it returns.
+* **Easier to find your way:** the open tab shows its name next to its icon.
+* **One settings window with a sidebar:** Look & pill · Tabs · My info · Visibility · Shortcuts · Day, AI & more. Every change shows on the island immediately; **Cancel** undoes everything, **Done** keeps it.
+* **Change the main shortcuts without restarting:** Customize ➔ ⌨️ Shortcuts. You're warned right there if another app already uses one.
+
 ### 🌙 Daily Life: Tasks, Water, Prayer Times, Pomodoro, Lyrics & Command Bar (NEW in 1.5)
 * **✅ Tasks & reminders:** type a task the way you'd say it: `Call mom at 17:30`, `Stretch in 20m`, `Report tomorrow 9am`. When it's due, the pill shows it, Windows shows a notification, and you can snooze it (10 min or 1 hour) or tick it off. Tasks sort by time.
 * **💧 Water tracker:** a ring fills as you log glasses toward your daily goal, with optional reminders. Put the ring in the pill from Customize.

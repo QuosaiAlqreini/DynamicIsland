@@ -102,6 +102,14 @@ def test_info_values():
     assert countdown_text("2026-12-25", dt.datetime(2026, 11, 8, 12)) == "46d 12h"
 
 
+def _settle(qapp, seconds=0.6):
+    """Let animations finish."""
+    import time
+    end = time.monotonic() + seconds
+    while time.monotonic() < end:
+        qapp.processEvents()
+
+
 def _island():
     from services.media_service import MediaService
     from services.system_service import SystemMonitorService
@@ -139,8 +147,11 @@ def test_autohide_tuck_and_reveal(qapp):
     w._reveal(animate=False)
     assert not w.tucked and w.isVisible()
     w.set_user_hidden(True)
+    _settle(qapp)
     assert not w.isVisible()
     w.set_user_hidden(False)
+    _settle(qapp)
+    assert w.isVisible() and w.windowOpacity() == 1.0
     c.set("visibility_mode", "always")
 
 
@@ -228,6 +239,7 @@ def test_position_offset(qapp):
     centered = w.x()
     ConfigManager().set("island_offset_x", -200)
     w.apply_customization()
+    _settle(qapp)
     assert w.x() == centered - 200
     w.expand()
     assert w.anim.endValue().center().x() < w._get_screen_geometry().center().x()
@@ -399,11 +411,15 @@ def test_manual_show_hide_and_style(qapp):
     w = _island()
     w.show()
     w.toggle_visibility()
+    _settle(qapp)
     assert w.user_hidden and not w.isVisible()
     w.toggle_visibility()
+    _settle(qapp)
     assert not w.user_hidden and w.isVisible()
     w.set_user_hidden(True)
+    _settle(qapp)
     w.summon()                                   # the hotkey always brings it back
+    _settle(qapp)
     assert w.isVisible() and not w.user_hidden
     w.collapse()
     w.set_style(True)
@@ -513,3 +529,42 @@ def test_island_and_notch_really_look_different(qapp):
     w.set_style(False)
     settle()
     assert w.y() == w._get_screen_geometry().y() + w.top_offset
+
+
+def test_customize_applies_live_and_cancel_undoes(qapp):
+    from config import ConfigManager
+    from modules.customize_dialog import CustomizeDialog
+    c = ConfigManager()
+    c.set("notch_mode", False)
+    c.set("island_size", "comfortable")
+    w = _island()
+    w.show()
+    start_w = w.base_compact_w
+    d = CustomizeDialog(w.theme, w.info_service, w)
+    assert [d.tabs.nav.item(i).text().split()[-1] for i in range(d.tabs.count())][-1] == "more"
+    d.rb_notch.setChecked(True)
+    d.size_combo.setCurrentIndex(d.size_combo.findData("roomy"))
+    _settle(qapp, 0.8)
+    assert w.notch_mode and w.base_compact_w > start_w       # applied live, without Save
+    assert w.y() == w._get_screen_geometry().y()
+    d.reject()                                               # Cancel puts everything back
+    _settle(qapp, 0.8)
+    assert not w.notch_mode and w.base_compact_w == start_w
+    assert c.get("island_size") == "comfortable"
+
+
+def test_notch_is_roomier_and_tabs_show_names(qapp):
+    from config import ConfigManager
+    ConfigManager().set("notch_mode", False)
+    w = _island()
+    island_size = (w.base_compact_w, w.compact_h, w.expanded_w, w.expanded_h)
+    w.set_style(True)
+    notch_size = (w.base_compact_w, w.compact_h, w.expanded_w, w.expanded_h)
+    assert all(n > i for n, i in zip(notch_size, island_size))
+    w.set_style(False)
+    w.config.set("tabs_visible", ["media", "shelf", "tasks", "notes", "focus", "day", "keys", "ai", "system", "tools"])
+    w.apply_customization()
+    from island_window import TAB_TASKS
+    w._switch_tab(TAB_TASKS, save=False)
+    assert "Tasks" in w.nav_buttons[TAB_TASKS].text()        # open tab shows its name
+    assert w.nav_buttons[w.nav_order[0]].text().strip() == "🎵"   # others stay as icons

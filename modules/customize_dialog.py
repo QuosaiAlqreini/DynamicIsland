@@ -1,14 +1,16 @@
 """🎨 Customize Island: choose what the pill shows, which tabs appear, your own
 info items, and how/when the island is visible."""
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QPainter, QColor, QLinearGradient, QBrush, QPen
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QComboBox,
     QCheckBox, QTabWidget, QWidget, QListWidget, QListWidgetItem, QAbstractItemView,
-    QRadioButton, QButtonGroup, QSpinBox, QFormLayout, QMessageBox, QFrame
+    QRadioButton, QButtonGroup, QSpinBox, QFormLayout, QMessageBox, QFrame, QStackedWidget, QScrollArea
 )
 
 from config import ConfigManager
+from modules.automation_dialog import HotkeyEdit
+from services.hotkey_service import parse_hotkey
 from modules.pill_idle import IdlePillWidget
 from modules.tab_registry import TAB_REGISTRY, DEFAULT_TABS
 from services.info_service import INFO_TYPES, INFO_TYPE_LABELS, PILL_BUILTINS, new_info_id
@@ -111,6 +113,71 @@ class InfoItemEditor(QDialog):
         self.accept()
 
 
+def AutomationService_macros(island):
+    try:
+        return island.automation_service.macros if island else []
+    except Exception:
+        return []
+
+
+class SidebarPages(QWidget):
+    """Sidebar navigation + pages (same calls as QTabWidget: addTab, setCurrentIndex...)."""
+
+    def __init__(self, theme, parent=None):
+        super().__init__(parent)
+        row = QHBoxLayout(self)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(10)
+        self.nav = QListWidget()
+        self.nav.setFixedWidth(170)
+        self.nav.setStyleSheet(f"""
+            QListWidget {{ background: {theme['bg_secondary']}; border: none; border-radius: 10px;
+                           padding: 6px; font-size: 12px; outline: none; color: {theme['text_primary']}; }}
+            QListWidget::item {{ padding: 9px 10px; border-radius: 7px; margin: 1px 0; }}
+            QListWidget::item:selected {{ background: {theme['accent']}; color: {theme['bg_color']}; }}
+            QListWidget::item:hover:!selected {{ background: {theme['card_bg']}; }}
+        """)
+        self.stack = QStackedWidget()
+        self.stack.setObjectName("pages")
+        self.stack.setStyleSheet(f"QStackedWidget#pages {{ background: {theme['bg_secondary']}; border-radius: 10px; }}")
+        row.addWidget(self.nav)
+        row.addWidget(self.stack, 1)
+        self.nav.currentRowChanged.connect(self.stack.setCurrentIndex)
+
+    def addTab(self, widget, label):
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        # Transparent page background so the dark theme shows through
+        scroll.setStyleSheet("QScrollArea, QScrollArea > QWidget > QWidget { background: transparent; }")
+        widget.setObjectName("page")
+        widget.setStyleSheet("QWidget#page { background: transparent; }")
+        lay = widget.layout()
+        if lay is not None:
+            lay.setContentsMargins(16, 14, 16, 14)
+        scroll.setWidget(widget)
+        self.stack.addWidget(scroll)
+        self.nav.addItem(label)
+        if self.nav.count() == 1:
+            self.nav.setCurrentRow(0)
+
+    def setCurrentIndex(self, index):
+        self.nav.setCurrentRow(index)
+
+    def currentIndex(self):
+        return self.nav.currentRow()
+
+    def count(self):
+        return self.nav.count()
+
+
+# Settings this window changes live; restored on Cancel
+LIVE_KEYS = ["pill_left", "pill_center", "pill_right", "compact_width", "island_size", "tabs_visible",
+             "visibility_mode", "peek_on_activity", "hide_in_fullscreen", "hide_for_apps", "lyrics_enabled",
+             "through_mode", "through_open", "island_offset_x", "expand_on_hover", "click_to_expand",
+             "notch_mode", "theme", "global_hotkey", "command_bar_hotkey"]
+
+
 class CustomizeDialog(QDialog):
     def __init__(self, theme, info_service, parent=None):
         super().__init__(parent)
@@ -119,15 +186,28 @@ class CustomizeDialog(QDialog):
         self.info = info_service
         self.items = [dict(i) for i in info_service.items]
         self._original_items = [dict(i) for i in self.items]
+        self._snapshot = {k: self.config.get(k) for k in LIVE_KEYS}
+        self.island = parent if hasattr(parent, "apply_customization") else None
+        self._ready = False
+        self._live_timer = QTimer(self)
+        self._live_timer.setSingleShot(True)
+        self._live_timer.setInterval(120)
+        self._live_timer.timeout.connect(self._apply_live)
 
         self.setWindowTitle("Customize Dynamic Island")
-        self.resize(680, 690)
+        self.resize(820, 640)
         self.setStyleSheet(dialog_style(theme))
 
         lay = QVBoxLayout(self)
+        head = QHBoxLayout()
         title = QLabel("🎨 Customize Island")
-        title.setStyleSheet(f"font-size: 16px; font-weight: 700; color: {theme['accent']};")
-        lay.addWidget(title)
+        title.setStyleSheet(f"font-size: 17px; font-weight: 700; color: {theme['accent']};")
+        head.addWidget(title)
+        head.addStretch()
+        hint = QLabel("Changes show on your island right away · Cancel undoes them")
+        hint.setStyleSheet(f"color: {theme['text_secondary']}; font-size: 11px;")
+        head.addWidget(hint)
+        lay.addLayout(head)
 
         # Live preview of the compact pill
         prev_row = QHBoxLayout()
@@ -142,11 +222,13 @@ class CustomizeDialog(QDialog):
         pf.addLayout(prev_row)
         lay.addWidget(prev_frame)
 
-        self.tabs = QTabWidget()
-        self.tabs.addTab(self._build_pill_tab(), "💊 Pill")
-        self.tabs.addTab(self._build_tabs_tab(), "🗂️ Tabs")
-        self.tabs.addTab(self._build_info_tab(), "ℹ️ Info")
-        self.tabs.addTab(self._build_behavior_tab(), "👁️ Visibility")
+        self.tabs = SidebarPages(theme)
+        self.tabs.addTab(self._build_pill_tab(), "✨  Look & pill")
+        self.tabs.addTab(self._build_tabs_tab(), "🗂️  Tabs")
+        self.tabs.addTab(self._build_info_tab(), "ℹ️  My info")
+        self.tabs.addTab(self._build_behavior_tab(), "👁️  Visibility")
+        self.tabs.addTab(self._build_shortcuts_tab(), "⌨️  Shortcuts")
+        self.tabs.addTab(self._build_more_tab(), "🌙  Day, AI & more")
         lay.addWidget(self.tabs, 1)
 
         btns = QHBoxLayout()
@@ -156,13 +238,15 @@ class CustomizeDialog(QDialog):
         btns.addStretch()
         cancel = QPushButton("Cancel")
         cancel.clicked.connect(self.reject)
-        save = QPushButton("Save")
+        save = QPushButton("Done")
         save.setStyleSheet(f"background: {theme['accent']}; color: {theme['bg_color']}; border: none;")
         save.clicked.connect(self._save)
         btns.addWidget(cancel)
         btns.addWidget(save)
         lay.addLayout(btns)
         self._update_preview()
+        self._connect_live()
+        self._ready = True
 
     # --------------------------------------------------------------- Pill
     def _build_pill_tab(self):
@@ -180,6 +264,11 @@ class CustomizeDialog(QDialog):
         srow.addWidget(self.rb_notch)
         srow.addStretch()
         form.addRow("<b>Look</b>", srow)
+        self.size_combo = QComboBox()
+        for key, label in (("compact", "Compact"), ("comfortable", "Comfortable"), ("roomy", "Roomy")):
+            self.size_combo.addItem(label, key)
+        self.size_combo.setCurrentIndex(max(0, self.size_combo.findData(self.config.get("island_size", "comfortable"))))
+        form.addRow("<b>Size</b>", self.size_combo)
         form.addRow(QLabel("Pick what the small pill shows. Live activities (timers, builds, alerts) "
                            "temporarily replace the middle."))
         self.slot_left, self.slot_center, self.slot_right = QComboBox(), QComboBox(), QComboBox()
@@ -195,7 +284,7 @@ class CustomizeDialog(QDialog):
         self.width_spin.setSuffix(" px")
         self.width_spin.setValue(int(self.config.get("compact_width", 200)))
         self.width_spin.valueChanged.connect(self._update_preview)
-        form.addRow("Pill width", self.width_spin)
+        form.addRow("Fine-tune width", self.width_spin)
         return w
 
     def _slot_choices(self):
@@ -427,11 +516,83 @@ class CustomizeDialog(QDialog):
 
     # -------------------------------------------------------------- Save
     def reject(self):
+        self._live_timer.stop()
         self.info.save_items(self._original_items)  # undo live edits
+        for key, value in self._snapshot.items():
+            self.config.set(key, value)
+        self._apply_to_island()
         super().reject()
+
+    # ------------------------------------------------------------ Shortcuts
+    def _build_shortcuts_tab(self):
+        w = QWidget()
+        form = QFormLayout(w)
+        form.addRow(QLabel("Click a box and press the keys you want. Changes work immediately."))
+        self.hk_open = HotkeyEdit()
+        self.hk_open.setText(self.config.get("global_hotkey", "Ctrl+Alt+Space"))
+        self.hk_bar = HotkeyEdit()
+        self.hk_bar.setText(self.config.get("command_bar_hotkey", "Alt+Space"))
+        for edit in (self.hk_open, self.hk_bar):
+            edit.textChanged.connect(lambda *_: self._live_timer.start() if self._ready else None)
+        form.addRow("Open / close the island", self.hk_open)
+        form.addRow("Command bar", self.hk_bar)
+        self.hk_status = QLabel("")
+        self.hk_status.setWordWrap(True)
+        self.hk_status.setStyleSheet(f"color: {self.theme['warning']};")
+        form.addRow("", self.hk_status)
+        form.addRow(QLabel(""))
+        lines = []
+        for m in AutomationService_macros(self.island):
+            if m.get("hotkey") and m.get("enabled", True):
+                lines.append(f"<tr><td style='padding-right:14px'><b>{m['hotkey']}</b></td><td>{m.get('name', '')}</td></tr>")
+        table = QLabel("<table>" + "".join(lines[:14]) + "</table>" if lines else "No other hotkeys yet.")
+        table.setTextFormat(Qt.TextFormat.RichText)
+        form.addRow("Your hotkeys", table)
+        edit_all = QPushButton("✏️ Change, add or remove hotkeys…")
+        edit_all.clicked.connect(lambda: self.island.open_automations() if self.island else None)
+        form.addRow("", edit_all)
+        return w
+
+    def show_hotkey_problems(self, problems):
+        self.hk_status.setText(("⚠️ Already used by another app: " + ", ".join(problems)) if problems else "")
+
+    # ----------------------------------------------------- Day, AI & more
+    def _build_more_tab(self):
+        w = QWidget()
+        lay = QVBoxLayout(w)
+        lay.setSpacing(10)
+
+        def card(title, text, button, action):
+            frame = QFrame()
+            frame.setStyleSheet(f"QFrame {{ background: {self.theme['card_bg']}; border-radius: 10px; }}"
+                                f" QLabel {{ background: transparent; }}")
+            v = QVBoxLayout(frame)
+            t = QLabel(f"<b>{title}</b>")
+            d = QLabel(text)
+            d.setWordWrap(True)
+            d.setStyleSheet(f"color: {self.theme['text_secondary']};")
+            b = QPushButton(button)
+            b.clicked.connect(action)
+            v.addWidget(t)
+            v.addWidget(d)
+            v.addWidget(b, alignment=Qt.AlignmentFlag.AlignLeft)
+            lay.addWidget(frame)
+
+        isl = self.island
+        card("💧 Water & 🕌 prayer times", "Daily water goal and reminders; your city, calculation method "
+             "and minute adjustments for prayer times.", "Open water && prayer settings…",
+             lambda: isl.day_widget.open_settings() if isl else None)
+        card("🤖 AI accounts", "Connect Gemini, Claude, OpenAI or Ollama for the AI tab and screen help.",
+             "Open AI settings…", lambda: isl.open_settings_dialog() if isl else None)
+        card("✍️ Text expansion & automations", "Type ;date to get today's date, and make your own "
+             "shortcuts that open apps, type text or control windows.", "Open automations…",
+             lambda: isl.open_automations() if isl else None)
+        lay.addStretch()
+        return w
 
     def _reset(self):
         self._fill_slot_combos(("ai_dot", "clock", "battery_icon"))
+        self.size_combo.setCurrentIndex(self.size_combo.findData("comfortable"))
         self.width_spin.setValue(200)
         for i in range(self.tab_list.count()):
             key = self.tab_list.item(i).data(Qt.ItemDataRole.UserRole)
@@ -445,10 +606,42 @@ class CustomizeDialog(QDialog):
         self._update_preview()
 
     def _save(self):
-        tabs = self._visible_tabs()
-        if not tabs:
+        if not self._visible_tabs():
             QMessageBox.warning(self, "No tabs", "Keep at least one tab visible.")
             return
+        self._live_timer.stop()
+        self._write()
+        self.info.save_items(self.items)
+        self._apply_to_island()
+        self.accept()
+
+    # ------------------------------------------------------------ live apply
+    def _connect_live(self):
+        """Every control applies to the real island (after a short pause)."""
+        poke = lambda *_: self._live_timer.start() if self._ready else None
+        for combo in self.findChildren(QComboBox):
+            combo.currentIndexChanged.connect(poke)
+        for box in self.findChildren(QCheckBox) + self.findChildren(QRadioButton):
+            box.toggled.connect(poke)
+        for spin in self.findChildren(QSpinBox):
+            spin.valueChanged.connect(poke)
+        for edit in (self.hide_apps,):
+            edit.editingFinished.connect(poke)
+        self.tab_list.itemChanged.connect(poke)
+        self.tab_list.model().rowsMoved.connect(poke)
+
+    def _apply_live(self):
+        if self._visible_tabs():
+            self._write()
+            self._apply_to_island()
+
+    def _apply_to_island(self):
+        if self.island is not None:
+            self.island.apply_customization()
+            self.show_hotkey_problems(self.island.rebind_core_hotkeys())
+
+    def _write(self):
+        tabs = self._visible_tabs()
         left, center, right = self._current_slots()
         c = self.config
         c.set("pill_left", left)
@@ -468,5 +661,8 @@ class CustomizeDialog(QDialog):
         c.set("click_to_expand", self.chk_click.isChecked())
         c.set("notch_mode", self.rb_notch.isChecked())
         c.set("theme", self.theme_combo.currentData())
-        self.info.save_items(self.items)
-        self.accept()
+        c.set("island_size", self.size_combo.currentData())
+        for key, edit in (("global_hotkey", self.hk_open), ("command_bar_hotkey", self.hk_bar)):
+            text = edit.text().strip()
+            if text and parse_hotkey(text):
+                c.set(key, text)

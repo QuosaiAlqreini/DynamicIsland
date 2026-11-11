@@ -3,7 +3,8 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QStackedWidget, QMenu
 )
 from PyQt6.QtCore import (
-    Qt, QTimer, QPropertyAnimation, QRect, QEasingCurve, QPoint, QEvent, pyqtSignal
+    Qt, QTimer, QPropertyAnimation, QRect, QEasingCurve, QPoint, QEvent, pyqtSignal,
+    QParallelAnimationGroup
 )
 from PyQt6.QtGui import (
     QPainter, QColor, QPen, QBrush, QLinearGradient, QCursor, QKeySequence, QShortcut
@@ -75,6 +76,10 @@ def notch_path(w, h, expanded=False):
     return p
 
 
+# Extra room per size choice: (pill width, pill height, panel width, panel height)
+SIZE_PROFILES = {"compact": (0, 0, 0, 0), "comfortable": (30, 4, 24, 14), "roomy": (70, 8, 60, 30)}
+NOTCH_EXTRA = (50, 4, 2 * 14 + 8, 10)   # the notch needs room for its curved shoulders
+
 MAX_LABELED_TABS = 8          # more visible tabs than this -> icon-only nav buttons
 AUTOHIDE_DELAY_S = 0.7        # cursor away this long -> tuck the island back up
 CLICK_MOVE_THRESHOLD = 4
@@ -133,14 +138,10 @@ class DynamicIslandWindow(QWidget):
         self._drop_override = False
 
         # Dimensions
-        self.base_compact_w = self.config.get("compact_width", 210)
-        self.compact_w = self.base_compact_w
-        self.compact_h = self.config.get("compact_height", 36)
-        self.expanded_w = self.config.get("expanded_width", 490)
-        # Shelf / Focus tabs need a little more room for their lists
-        self.expanded_h = max(self.config.get("expanded_height", 200), 240)
         self.top_offset = self.config.get("anchor_top_offset", 8)
         self.notch_mode = self.config.get("notch_mode", False)
+        self._apply_size_profile()
+        self.compact_w = self.base_compact_w
 
         # Window Flags
         self.setWindowFlags(
@@ -271,6 +272,8 @@ class DynamicIslandWindow(QWidget):
             icon, label, tip = TAB_REGISTRY[key]
             index = TAB_KEY_TO_INDEX[key]
             btn = QPushButton(icon if icon_only else f"{icon} {label}")
+            btn.setProperty("nav_icon", icon)
+            btn.setProperty("nav_label", label)
             btn.setCheckable(True)
             btn.setToolTip(f"{label}: {tip}" + (f"  (Ctrl+{pos})" if pos <= 9 else ""))
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -289,6 +292,10 @@ class DynamicIslandWindow(QWidget):
         self.stack.setCurrentIndex(index)
         for i, btn in self.nav_buttons.items():
             btn.setChecked(i == index)
+            if getattr(self, "_nav_icon_only", False):
+                # Icons only (many tabs): the open tab also shows its name
+                icon, label = btn.property("nav_icon"), btn.property("nav_label")
+                btn.setText(f"{icon} {label}" if i == index else icon)
         if save and self.config.get("remember_last_tab", True):
             self.config.set("last_tab", index)
 
@@ -323,17 +330,45 @@ class DynamicIslandWindow(QWidget):
         self.idle_pill.set_slots(self.config.get("pill_left", "ai_dot"),
                                  self.config.get("pill_center", "clock"),
                                  self.config.get("pill_right", "battery_icon"))
-        self.base_compact_w = self.config.get("compact_width", 200)
-        self.compact_w = self.base_compact_w + (90 if self.idle_pill.current_activity() else 0)
         self.notch_mode = self.config.get("notch_mode", False)
+        self._apply_size_profile()
+        self.compact_w = self.base_compact_w + self._activity_extra()
         self._rebuild_nav()
         theme = self.config.get("theme", self.theme_name)
         if theme != self.theme_name:
             self.set_theme(theme)
         self._apply_visibility_mode()
-        if not self.is_expanded:
-            self._reposition_compact()
+        if self.is_expanded:
+            self._animate_to(QRect(self._centered_x(self.expanded_w), self._rest_y(),
+                                   self.expanded_w, self.expanded_h))
+        elif not self.tucked and not self.user_hidden:
+            self._animate_to(QRect(self._centered_x(self.compact_w), self._rest_y(),
+                                   self.compact_w, self.compact_h))
+        self.resizeEvent(None)
         self.update()
+
+    def rebind_core_hotkeys(self):
+        """(Re)register the open-island and command-bar hotkeys from the config.
+
+        Returns a list of shortcuts that another program already owns."""
+        hk = getattr(self, "hotkey_service", None)
+        if hk is None or not hk.available:
+            return []
+        bound = self.__dict__.setdefault("_bound_hotkeys", {})
+        problems = []
+        for hid, key, default, label in ((1, "global_hotkey", "Ctrl+Alt+Space", "Open island"),
+                                         (2, "command_bar_hotkey", "Alt+Space", "Command bar")):
+            text = self.config.get(key, default)
+            if bound.get(hid) == text:
+                continue
+            hk.unregister(hid)
+            if text and hk.register(hid, text):
+                bound[hid] = text
+            else:
+                bound[hid] = None
+                if text:
+                    problems.append(f"{label}: {text}")
+        return problems
 
     def open_automations(self):
         dlg = AutomationDialog(self.theme, self.automation_service, self)
@@ -465,6 +500,8 @@ class DynamicIslandWindow(QWidget):
     def _on_pill_activity(self, active):
         """Grow the pill while a live activity (timer, build, toast) is shown."""
         self.compact_w = self.base_compact_w + (90 if active else 0)
+        if getattr(self, "glide", None) is not None and self.glide.state() == self.glide.State.Running:
+            return   # a show/hide glide is in progress; it ends at the right size
         if not self.is_expanded and not self.is_dragging and not self.tucked:
             # Use the resting position, not the current one: another animation (e.g. switching
             # to the notch) may still be moving the window and must not be cancelled midway.
@@ -629,6 +666,22 @@ class DynamicIslandWindow(QWidget):
             from PyQt6.QtWidgets import QApplication
             screen = QApplication.primaryScreen()
         return screen.geometry()
+
+    def _apply_size_profile(self):
+        """Window sizes from the configured size + style (the notch gets extra room)."""
+        dw, dh, dew, deh = SIZE_PROFILES.get(self.config.get("island_size", "comfortable"),
+                                             SIZE_PROFILES["comfortable"])
+        if self.notch_mode:
+            nw, nh, new, neh = NOTCH_EXTRA
+            dw, dh, dew, deh = dw + nw, dh + nh, dew + new, deh + neh
+        self.base_compact_w = int(self.config.get("compact_width", 200)) + dw
+        self.compact_h = int(self.config.get("compact_height", 36)) + dh
+        self.expanded_w = int(self.config.get("expanded_width", 490)) + dew
+        # Shelf / Focus tabs need a little more room for their lists
+        self.expanded_h = max(int(self.config.get("expanded_height", 200)), 240) + deh
+
+    def _activity_extra(self):
+        return 90 if self.idle_pill.current_activity() else 0
 
     def _rest_y(self):
         geom = self._get_screen_geometry()
@@ -812,6 +865,9 @@ class DynamicIslandWindow(QWidget):
         """Switch between the floating island and the notch, live."""
         self.notch_mode = bool(notch)
         self.config.set("notch_mode", self.notch_mode)
+        self._apply_size_profile()
+        self.compact_w = self.base_compact_w + self._activity_extra()
+        self.resizeEvent(None)
         if self.is_expanded:
             self.collapse()
         elif not self.tucked:
@@ -825,20 +881,18 @@ class DynamicIslandWindow(QWidget):
         self.user_hidden = hidden
         if hidden:
             self.collapse()
-            self.hide()
+            self._glide_out()
         else:
             self.tucked = False
             self.fullscreen_hidden = False
-            self._reposition_compact()
-            self.show()
+            self._glide_in()
 
     def _tuck(self):
         if self.tucked or self.is_expanded:
             return
         self.tucked = True
         self._away_since = None
-        self._animate_to(QRect(self.x(), self._hidden_y(self.height()), self.width(), self.height()),
-                         on_done=lambda: self.hide() if self.tucked else None)
+        self._glide_out(on_done=lambda: None if self.tucked else self._glide_in(), duration=300)
 
     def _reveal(self, animate=True):
         if self.user_hidden or self.fullscreen_hidden:
@@ -846,13 +900,13 @@ class DynamicIslandWindow(QWidget):
         self.tucked = False
         self._away_since = None
         target = QRect(self._centered_x(self.compact_w), self._rest_y(), self.compact_w, self.compact_h)
-        if not self.isVisible():
-            self.setGeometry(target.x(), self._hidden_y(self.compact_h), target.width(), target.height())
-            self.show()
         if animate:
-            self._animate_to(target)
+            self._glide_in(duration=300)
         else:
+            self._stop_glide()
+            self.setWindowOpacity(1.0)
             self.setGeometry(target)
+            self.show()
 
     def _peeking(self):
         return bool(self.config.get("peek_on_activity", True) and self.idle_pill.flash_activity)
@@ -896,7 +950,7 @@ class DynamicIslandWindow(QWidget):
             if not self.fullscreen_hidden:
                 self.fullscreen_hidden = True
                 self.collapse()
-                self.hide()
+                self._glide_out(duration=160)
         elif self.fullscreen_hidden:
             # Come back only after a moment, so switching tabs in a game doesn't flicker it
             self._fs_clear_ticks = getattr(self, "_fs_clear_ticks", 0) + 1
@@ -907,26 +961,99 @@ class DynamicIslandWindow(QWidget):
         self.fullscreen_hidden = False
         if self.user_hidden or (self._autohide_enabled() and self.tucked):
             return
-        self._reposition_compact()
-        self.show()
+        self._glide_in()
 
     def resizeEvent(self, event):
         # Pill follows the window; the expanded panel keeps its final size and is
         # simply revealed/clipped by the window while it animates.
-        self.idle_pill.setGeometry(4, 4, max(0, self.width() - 8), max(0, self.height() - 8))
-        cw = self.expanded_w - 8
-        self.expanded_container.setGeometry(int((self.width() - cw) / 2), 4, cw, self.expanded_h - 8)
-        super().resizeEvent(event)
+        side = NOTCH_SHOULDER + 2 if self.notch_mode else 4
+        top = 2 if self.notch_mode else 4
+        self.idle_pill.setGeometry(side, top, max(0, self.width() - 2 * side), max(0, self.height() - 2 * top))
+        cw = self.expanded_w - 2 * side
+        self.expanded_container.setGeometry(int((self.width() - cw) / 2), top, cw, self.expanded_h - 2 * top - 2)
+        if event is not None:
+            super().resizeEvent(event)
 
-    def _animate_to(self, target_rect, on_done=None):
+    def _animate_to(self, target_rect, on_done=None, duration=None, easing=None):
+        """Move/resize smoothly. Growing gets a soft spring, everything else eases out."""
+        old = getattr(self, "anim", None)
+        if old is not None:
+            old.stop()
+        glide = getattr(self, "glide", None)
+        if glide is not None and glide.state() == glide.State.Running:
+            glide.stop()               # a new move wins over a show/hide glide
+            self.setWindowOpacity(1.0)
         self.anim = QPropertyAnimation(self, b"geometry")
         if on_done is not None:
             self.anim.finished.connect(on_done)
-        self.anim.setDuration(220)
+        grows = target_rect.width() * target_rect.height() > self.width() * self.height() * 1.5
+        if easing is None:
+            if grows:
+                easing = QEasingCurve(QEasingCurve.Type.OutBack)
+                easing.setOvershoot(0.7)       # gentle spring, not a bounce
+            else:
+                easing = QEasingCurve(QEasingCurve.Type.OutQuart)
+        self.anim.setDuration(duration or (380 if grows else 300))
         self.anim.setStartValue(self.geometry())
         self.anim.setEndValue(target_rect)
-        self.anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+        self.anim.setEasingCurve(easing)
         self.anim.start()
+
+    # ------------------------------------------- gliding show / hide
+    def _glide_out(self, on_done=None, duration=260):
+        """Slide up into the top edge while fading out, then hide."""
+        if not self.isVisible():
+            if on_done:
+                on_done()
+            return
+        self._stop_glide()
+        start = self.geometry()
+        end = QRect(start.x(), self._hidden_y(start.height()), start.width(), start.height())
+        self.glide = self._glide_group(start, end, self.windowOpacity(), 0.0, duration,
+                                       QEasingCurve.Type.InCubic)
+
+        def finish():
+            self.hide()
+            self.setWindowOpacity(1.0)
+            if on_done:
+                on_done()
+        self.glide.finished.connect(finish)
+        self.glide.start()
+
+    def _glide_in(self, duration=340):
+        """Appear from the top edge: slide down while fading in."""
+        self._stop_glide()
+        end = QRect(self._centered_x(self.compact_w), self._rest_y(), self.compact_w, self.compact_h)
+        start = QRect(end.x(), self._hidden_y(end.height()), end.width(), end.height())
+        self.setGeometry(start)
+        self.setWindowOpacity(0.0)
+        self.show()
+        self.glide = self._glide_group(start, end, 0.0, 1.0, duration, QEasingCurve.Type.OutCubic)
+        self.glide.start()
+
+    def _glide_group(self, start, end, op_from, op_to, duration, curve):
+        group = QParallelAnimationGroup()
+        move = QPropertyAnimation(self, b"geometry")
+        move.setStartValue(start)
+        move.setEndValue(end)
+        move.setDuration(duration)
+        move.setEasingCurve(curve)
+        fade = QPropertyAnimation(self, b"windowOpacity")
+        fade.setStartValue(op_from)
+        fade.setEndValue(op_to)
+        fade.setDuration(duration)
+        fade.setEasingCurve(QEasingCurve.Type.OutQuad)
+        group.addAnimation(move)
+        group.addAnimation(fade)
+        return group
+
+    def _stop_glide(self):
+        glide = getattr(self, "glide", None)
+        if glide is not None:
+            glide.stop()
+        anim = getattr(self, "anim", None)
+        if anim is not None:
+            anim.stop()
 
     def _should_stay_open(self):
         """Don't yank the island away while the user is typing or dragging."""
