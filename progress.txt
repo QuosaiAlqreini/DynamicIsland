@@ -96,3 +96,12 @@ Started: 2026-10-31 16:50
   - Prayer maths: Umm al-Qura = Fajr 18.5°, Isha = Maghrib + 90 min; use night/7 fallback when twilight angle is never reached.
 - **Not done yet from those apps:** screenshots with markup, OCR, colour picker, screen recording, notification mirroring, Wi-Fi/Bluetooth/VPN controls, mic/camera indicators, island size scaling, weather, animated characters.
 ---
+
+## 2026-11-12 - US-024 (AI agents + Robo + shape morph, v1.7.0)
+- **Implemented:** AgentService (ThreadingHTTPServer on 127.0.0.1, token header), Claude Code http hooks install/remove, PermissionRequest allow/deny round-trip, Codex notify, Agents tab, Robo painter/widget, window capture for "ask Robo", shape-morph open/close; push-windows-down made opt-in under a new key.
+- **Learnings:**
+  - Claude Code hooks: type "http" posts the same JSON as stdin; PermissionRequest reply is hookSpecificOutput.decision.behavior allow|deny; empty 2xx body = no decision.
+  - Animate a painted QRectF + a clip widget instead of the native window geometry: 1 native resize per open/close instead of ~20.
+  - Renaming a config key is the simplest way to reset a bad default that live-apply already persisted.
+- **Not verified here:** a real Claude Code / Codex session on Windows (tested with the documented payloads over real HTTP).
+---

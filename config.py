@@ -66,10 +66,13 @@ DEFAULT_CONFIG = {
     "through_dwell_ms": 350,
     "through_opacity": 0.35,           # pill fades to this while the cursor is over it
     "island_offset_x": 0,              # px from screen center (negative = left)
-    "pill_left": "ai_dot",
+    "pill_left": "robo",
     "pill_center": "clock",
     "pill_right": "battery_icon",
-    "tabs_visible": ["media", "shelf", "tasks", "notes", "focus", "day", "keys", "ai", "system", "tools"],
+    "agent_port": 47821,               # local port Claude Code / Codex report to
+    "agent_auto_open": True,           # open the island when an agent asks for permission
+    "agent_sounds": True,
+    "tabs_visible": ["media", "agents", "shelf", "tasks", "notes", "focus", "day", "keys", "ai", "system", "tools"],
     "hide_for_apps": [],               # exe names: hide the island while one is in front
     # --- Tasks, water, prayer, pomodoro, lyrics, command bar ---
     "tasks": [],

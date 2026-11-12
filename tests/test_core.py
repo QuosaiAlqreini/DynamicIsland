@@ -247,7 +247,11 @@ def test_position_offset(qapp):
     _settle(qapp)
     assert w.x() == centered - 200
     w.expand()
-    assert w.anim.endValue().center().x() < w._get_screen_geometry().center().x()
+    _settle(qapp)
+    assert w.geometry().center().x() < w._get_screen_geometry().center().x()
+    w.collapse()
+    _settle(qapp)
+    assert w.width() == w.compact_w and w._shape is None
     ConfigManager().set("island_offset_x", 0)
 
 
@@ -619,3 +623,148 @@ def test_notch_reserves_space_and_gives_it_back():
     before, during, after = map(int, out.stdout.split("WORKAREA")[1].split())
     assert during > before, "maximized windows should start below the notch"
     assert after == before, "space must be given back on exit"
+
+
+# ------------------------------------------------------------- AI agents
+def _post(port, token, payload, path="/hook", timeout=10):
+    import json
+    import urllib.request
+    req = urllib.request.Request(f"http://127.0.0.1:{port}{path}", data=json.dumps(payload).encode(),
+                                 headers={"Content-Type": "application/json", "X-Island-Token": token})
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return r.status, r.read().decode()
+
+
+def _agent_service(qapp, port):
+    from services.agent_service import AgentService
+    svc = AgentService()
+    svc.config.set("agent_port", port)
+    assert svc.start(), svc.error
+    return svc
+
+
+def test_agent_events_feed_and_done(qapp):
+    svc = _agent_service(qapp, 47931)
+    done = []
+    svc.finished.connect(done.append)
+    base = {"session_id": "s1", "cwd": "C:/code/my-app"}
+    for payload in (
+        dict(base, hook_event_name="UserPromptSubmit", prompt="Fix the login bug"),
+        dict(base, hook_event_name="PreToolUse", tool_name="Read", tool_input={"file_path": "C:/code/my-app/src/login.py"}),
+        dict(base, hook_event_name="PreToolUse", tool_name="Bash", tool_input={"command": "npm test"}),
+    ):
+        assert _post(47931, svc.token, payload)[0] == 200
+    _settle(qapp, 0.3)
+    assert svc.summary() == ("working", "▶ npm test")
+    texts = [e["text"] for e in svc.feed]
+    assert "Reading login.py" in texts and "npm test" in texts
+    assert svc.sessions["s1"]["project"] == "my-app"
+    _post(47931, svc.token, dict(base, hook_event_name="Stop", last_assistant_message="All tests pass now."))
+    _settle(qapp, 0.3)
+    assert done and done[0]["answer"] == "All tests pass now." and svc.summary()[0] == "done"
+    svc.stop()
+
+
+def test_agent_rejects_wrong_token(qapp):
+    import urllib.error
+    svc = _agent_service(qapp, 47932)
+    with pytest.raises(urllib.error.HTTPError) as err:
+        _post(47932, "wrong-token", {"hook_event_name": "PreToolUse", "tool_name": "Bash"})
+    assert err.value.code == 403
+    _settle(qapp, 0.2)
+    assert not svc.feed
+    svc.stop()
+
+
+def test_agent_permission_allow_deny_and_no_answer(qapp, monkeypatch):
+    import json
+    import threading
+    import services.agent_service as mod
+    svc = _agent_service(qapp, 47933)
+    payload = {"session_id": "s2", "cwd": "/w/proj", "hook_event_name": "PermissionRequest",
+               "tool_name": "Bash", "tool_input": {"command": "rm -rf node_modules"}}
+
+    def ask():
+        box = {}
+        t = threading.Thread(target=lambda: box.update(r=_post(47933, svc.token, payload, timeout=20)))
+        t.start()
+        end = time.monotonic() + 3
+        while not svc.pending and time.monotonic() < end:
+            qapp.processEvents()
+        return t, box
+
+    for allow, expected in ((True, "allow"), (False, "deny")):
+        t, box = ask()
+        assert svc.pending and svc.pending[0]["detail"] == "rm -rf node_modules"
+        assert svc.summary()[0] == "waiting"
+        svc.decide(svc.pending[0]["id"], allow)
+        t.join(5)
+        out = json.loads(box["r"][1])["hookSpecificOutput"]
+        assert out["hookEventName"] == "PermissionRequest" and out["decision"]["behavior"] == expected
+        assert ("message" in out["decision"]) == (not allow)
+        _settle(qapp, 0.2)
+        assert not svc.pending
+
+    # Nobody answers: empty reply, so Claude Code falls back to its own prompt
+    monkeypatch.setattr(mod, "PERMISSION_WAIT_S", 0.4)
+    t, box = ask()
+    t.join(5)
+    assert box["r"] == (200, "")
+    _settle(qapp, 0.3)
+    assert not svc.pending
+    svc.stop()
+
+
+def test_claude_settings_merge_keeps_user_hooks():
+    from services.agent_service import merge_claude_settings, strip_claude_settings, HOOK_EVENTS
+    mine = {"model": "x", "hooks": {"PreToolUse": [{"matcher": "Bash", "hooks": [{"type": "command", "command": "lint"}]}]}}
+    merged = merge_claude_settings(mine, 47821, "tok")
+    assert merged["model"] == "x" and set(HOOK_EVENTS) <= set(merged["hooks"])
+    assert merged["hooks"]["PreToolUse"][0]["hooks"][0]["command"] == "lint"      # user's hook kept first
+    ours = merged["hooks"]["PermissionRequest"][0]["hooks"][0]
+    assert ours["type"] == "http" and ours["url"] == "http://127.0.0.1:47821/hook" and ours["timeout"] > 100
+    again = merge_claude_settings(merged, 47821, "tok2")                          # reconnect: no duplicates
+    assert len(again["hooks"]["PreToolUse"]) == 2
+    assert strip_claude_settings(again) == mine                                   # disconnect restores exactly
+    assert "hooks" not in strip_claude_settings(merge_claude_settings({}, 1, "t"))
+
+
+def test_connect_claude_writes_backup(qapp, tmp_path, monkeypatch):
+    import json
+    from services.agent_service import AgentService
+    path = tmp_path / ".claude" / "settings.json"
+    path.parent.mkdir()
+    path.write_text('{"theme": "dark"}')
+    monkeypatch.setattr(AgentService, "claude_settings_path", staticmethod(lambda: path))
+    svc = AgentService()
+    assert not svc.claude_connected()
+    ok, _msg = svc.connect_claude()
+    assert ok and svc.claude_connected()
+    assert json.loads(path.read_text())["theme"] == "dark"
+    assert json.loads((path.parent / "settings.json.island-backup").read_text()) == {"theme": "dark"}
+    ok, _msg = svc.disconnect_claude()
+    assert ok and json.loads(path.read_text()) == {"theme": "dark"}
+    path.write_text("{ not json")
+    ok, msg = svc.connect_claude()
+    assert not ok and path.read_text() == "{ not json"                            # never clobber a broken file
+
+
+def test_island_reacts_to_agent(qapp):
+    from island_window import TAB_AGENTS
+    w = _island()
+    w.show()
+    svc = w.agent_service
+    svc._handle_event({"hook_event_name": "PreToolUse", "session_id": "a", "cwd": "/x/site",
+                       "tool_name": "Edit", "tool_input": {"file_path": "/x/site/index.html"}})
+    assert w.idle_pill.robo_mood == "focused"
+    assert "Editing index.html" in w.idle_pill.activities["agent"]["text"]
+    svc._handle_event({"hook_event_name": "PermissionRequest", "session_id": "a", "_request_id": "r1",
+                       "tool_name": "Bash", "tool_input": {"command": "git push"}})
+    _settle(qapp, 0.6)
+    assert w.is_expanded and w.stack.currentIndex() == TAB_AGENTS       # opened for the decision
+    assert w.agents_widget.card.isVisible() and "git push" in w.agents_widget.card_detail.text()
+    assert w.idle_pill.robo_mood == "curious"
+    w.agents_widget.btn_deny.click()
+    assert not svc.pending and not w.agents_widget.card.isVisible()
+    svc._handle_event({"hook_event_name": "Stop", "session_id": "a", "last_assistant_message": "Pushed."})
+    assert w.idle_pill.robo_mood == "happy" and "agent" not in w.idle_pill.activities

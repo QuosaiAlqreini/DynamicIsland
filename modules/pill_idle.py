@@ -29,6 +29,8 @@ class IdlePillWidget(QWidget):
 
         self.pulse_phase = 0.0
         self.wave_phase = 0.0
+        self.robo_mood = "idle"
+        self._t0 = time.monotonic()
 
         # Live activities (timer, builds, ...) shown instead of the center item.
         # key -> {"text", "progress" (0-1 or None), "color", "priority"}
@@ -67,8 +69,12 @@ class IdlePillWidget(QWidget):
         self.pulse_phase = (self.pulse_phase + 0.08) % (2 * math.pi)
         if self.is_playing:
             self.wave_phase = (self.wave_phase + 0.25) % (2 * math.pi)
-        if "ai_dot" in self.slots or self.is_playing:
+        if "ai_dot" in self.slots or "robo" in self.slots or self.is_playing:
             self.update()
+
+    def set_robo_mood(self, mood):
+        self.robo_mood = mood
+        self.update()
 
     def update_agent_status(self, status, color_hex):
         self.agent_status = status
@@ -142,6 +148,8 @@ class IdlePillWidget(QWidget):
             return 0
         if slot == "ai_dot":
             return 20
+        if slot == "robo":
+            return 22
         if slot == "battery_icon":
             return 24
         if slot in ("water_ring", "battery_ring"):
@@ -190,7 +198,13 @@ class IdlePillWidget(QWidget):
     def _paint_slot(self, painter, slot, x, width, h, align):
         if not width:
             return
-        if slot == "ai_dot":
+        if slot == "robo":
+            from modules.robo import paint_robo
+            from PyQt6.QtCore import QRectF
+            size = min(22, h - 4)
+            paint_robo(painter, QRectF(x, (h - size) / 2, size, size), self.robo_mood,
+                       time.monotonic() - self._t0, self.theme)
+        elif slot == "ai_dot":
             self._paint_ai_dot(painter, x, h)
         elif slot == "battery_icon":
             self._paint_battery(painter, x, h)
@@ -205,7 +219,7 @@ class IdlePillWidget(QWidget):
     def _paint_center(self, painter, slot, left, right, w, h):
         if slot in ("none", ""):
             return
-        if slot in ("ai_dot", "battery_icon", "water_ring", "battery_ring"):
+        if slot in ("ai_dot", "robo", "battery_icon", "water_ring", "battery_ring"):
             cx = int(w / 2 - (10 if slot == "ai_dot" else 12))
             self._paint_slot(painter, slot, cx, 24, h, Qt.AlignmentFlag.AlignCenter)
             return

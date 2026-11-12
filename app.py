@@ -229,6 +229,11 @@ def main():
             "\nPick a different one in Preferences or ⌨️ Keys → Edit.",
             QSystemTrayIcon.MessageIcon.Warning, 10000))
 
+    # Local listener for Claude Code / Codex (only on this PC)
+    if not selftest:
+        island.agent_service.start()
+        app.aboutToQuit.connect(island.agent_service.stop)
+
     # Start services
     media_service.start()
     sys_service.start()

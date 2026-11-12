@@ -459,3 +459,24 @@ def foreground_process_name():
         return psutil.Process(pid.value).name().lower() if pid.value else ""
     except Exception:
         return ""
+
+
+def window_at(x, y):
+    """Top-level window under a screen point (physical px): (title, (l, t, r, b)) or None."""
+    if not IS_WINDOWS:
+        return None
+    try:
+        user32.WindowFromPoint.restype = wintypes.HWND
+        user32.WindowFromPoint.argtypes = (wintypes.POINT,)
+        user32.GetAncestor.restype = wintypes.HWND
+        user32.GetAncestor.argtypes = (wintypes.HWND, wintypes.UINT)
+        hwnd = user32.GetAncestor(user32.WindowFromPoint(wintypes.POINT(int(x), int(y))), 2)  # GA_ROOT
+        if not hwnd or _class_name(hwnd) in ("Progman", "WorkerW"):
+            return None
+        r = wintypes.RECT()
+        # Visible bounds without the invisible resize border
+        if ctypes.windll.dwmapi.DwmGetWindowAttribute(hwnd, 9, ctypes.byref(r), ctypes.sizeof(r)) != 0:
+            user32.GetWindowRect(hwnd, ctypes.byref(r))
+        return window_title(hwnd), (r.left, r.top, r.right, r.bottom)
+    except Exception:
+        return None

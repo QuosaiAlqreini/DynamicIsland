@@ -29,6 +29,7 @@ INFO_TYPE_LABELS = {k: label for k, label, _ in INFO_TYPES}
 # Built-in things the compact pill can show (key, label)
 PILL_BUILTINS = [
     ("none", "Nothing"),
+    ("robo", "Robo (shows what your AI agent is doing)"),
     ("ai_dot", "AI status dot"),
     ("clock", "Clock (14:05)"),
     ("clock_seconds", "Clock with seconds"),

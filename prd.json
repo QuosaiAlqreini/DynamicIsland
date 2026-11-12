@@ -331,6 +331,24 @@
       "priority": 23,
       "passes": true,
       "notes": "services/{tasks_service,day_service,prayer,lyrics_service,volume_service,commands}.py, modules/{tasks_widget,day_widget,command_bar}.py"
+    },
+    {
+      "id": "US-024",
+      "title": "AI agent island: live activity, Allow/Deny, done alerts, Robo; shape-morph animation",
+      "description": "TwoCode-style features built natively, plus smoother open/close.",
+      "acceptanceCriteria": [
+        "Local HTTP listener (127.0.0.1 + token) receives Claude Code http hooks",
+        "PreToolUse etc. shown as live activity in pill and Agents tab",
+        "PermissionRequest answered with allow/deny JSON only on user click; no answer returns empty body (normal prompt)",
+        "Stop triggers sound, flash, toast, last answer",
+        "Connect/Disconnect merges only our hooks into settings.json with backup; invalid JSON never overwritten",
+        "Codex notify for turn completion",
+        "Robo with moods in pill and tab; poke; drag onto a window to ask the AI with a capture",
+        "Open/close animate a painted shape: one native resize each way"
+      ],
+      "priority": 24,
+      "passes": true,
+      "notes": "services/agent_service.py, modules/{agents_widget,robo}.py; hook payload shapes taken from code.claude.com/docs/en/hooks"
     }
   ]
 }

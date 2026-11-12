@@ -4,7 +4,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import (
     Qt, QTimer, QPropertyAnimation, QRect, QEasingCurve, QPoint, QEvent, pyqtSignal,
-    QParallelAnimationGroup
+    QParallelAnimationGroup, QVariantAnimation, QRectF
 )
 from PyQt6.QtGui import (
     QPainter, QColor, QPen, QBrush, QLinearGradient, QCursor, QKeySequence, QShortcut
@@ -39,15 +39,18 @@ from services.volume_service import VolumeService
 from modules.tasks_widget import TasksWidget
 from modules.day_widget import DayWidget
 from modules.command_bar import CommandBar
+from modules.agents_widget import AgentsWidget
+from modules.robo import mood_for
+from services.agent_service import AgentService
 from PyQt6.QtWidgets import QAbstractScrollArea, QAbstractSlider, QAbstractSpinBox, QComboBox
 from services import win_input
 import time
 
 # Tab indices (kept stable so existing shortcuts keep working)
-TAB_MEDIA, TAB_SYSTEM, TAB_AI, TAB_TOOLS, TAB_SHELF, TAB_NOTES, TAB_FOCUS, TAB_KEYS, TAB_INFO, TAB_TASKS, TAB_DAY = range(11)
+TAB_MEDIA, TAB_SYSTEM, TAB_AI, TAB_TOOLS, TAB_SHELF, TAB_NOTES, TAB_FOCUS, TAB_KEYS, TAB_INFO, TAB_TASKS, TAB_DAY, TAB_AGENTS = range(12)
 TAB_KEY_TO_INDEX = {"media": TAB_MEDIA, "system": TAB_SYSTEM, "ai": TAB_AI, "tools": TAB_TOOLS,
                     "shelf": TAB_SHELF, "notes": TAB_NOTES, "focus": TAB_FOCUS, "keys": TAB_KEYS,
-                    "info": TAB_INFO, "tasks": TAB_TASKS, "day": TAB_DAY}
+                    "info": TAB_INFO, "tasks": TAB_TASKS, "day": TAB_DAY, "agents": TAB_AGENTS}
 TAB_NAMES = dict(TAB_KEY_TO_INDEX, sys=TAB_SYSTEM, clipboard=TAB_SHELF,
                  timer=TAB_FOCUS, automations=TAB_KEYS, todo=TAB_TASKS, water=TAB_DAY,
                  prayer=TAB_DAY)
@@ -117,6 +120,9 @@ class DynamicIslandWindow(QWidget):
         self.info_service.day = self.day_service
         self.info_service.lyrics = self.lyrics_service
         self.command_bar = None
+        self.agent_service = AgentService(self)
+        self._robo_capture = None
+        self._migrate_new_defaults()
 
         # State tracking
         self.is_expanded = False
@@ -131,6 +137,7 @@ class DynamicIslandWindow(QWidget):
         self.user_hidden = False       # hidden from the tray menu
         self.summoned = False          # opened via hotkey/tray: ignore fullscreen until closed
         self._away_since = None
+        self._shape = None             # painted shape while opening/closing (window coords)
         # Click-through ("through mode") state
         self._passthrough = False      # window currently ignores the mouse
         self._zone_inside = False
@@ -190,7 +197,9 @@ class DynamicIslandWindow(QWidget):
                                  self.config.get("pill_right", "battery_icon"))
 
         # 2. Expanded Container (Visible when expanded)
-        self.expanded_container = QWidget(self)
+        # The panel lives inside a clip widget that follows the animated shape
+        self.clip = QWidget(self)
+        self.expanded_container = QWidget(self.clip)
         self.exp_layout = QVBoxLayout(self.expanded_container)
         self.exp_layout.setContentsMargins(0, 0, 0, 0)
         self.exp_layout.setSpacing(4)
@@ -208,6 +217,7 @@ class DynamicIslandWindow(QWidget):
         self.info_widget = InfoWidget(self.theme, self.info_service, self)
         self.tasks_widget = TasksWidget(self.theme, self.tasks_service, self)
         self.day_widget = DayWidget(self.theme, self.day_service, self)
+        self.agents_widget = AgentsWidget(self.theme, self.agent_service, self)
 
         self.stack.addWidget(self.media_widget) # Index 0
         self.stack.addWidget(self.sys_widget)   # Index 1
@@ -220,6 +230,7 @@ class DynamicIslandWindow(QWidget):
         self.stack.addWidget(self.info_widget)  # Index 8
         self.stack.addWidget(self.tasks_widget) # Index 9
         self.stack.addWidget(self.day_widget)   # Index 10
+        self.stack.addWidget(self.agents_widget)  # Index 11
 
         self.exp_layout.addWidget(self.stack)
 
@@ -243,7 +254,7 @@ class DynamicIslandWindow(QWidget):
                 color: {self.theme['text_secondary']};
                 border: 1px solid {self.theme['border_color']};
                 border-radius: 11px;
-                padding: {'3px 10px' if getattr(self, '_nav_icon_only', False) else '3px 6px'};
+                padding: {'3px 6px' if getattr(self, '_nav_icon_only', False) else '3px 6px'};
                 font-size: {'14px' if getattr(self, '_nav_icon_only', False) else '10px'};
                 font-weight: 600;
             }}
@@ -268,6 +279,7 @@ class DynamicIslandWindow(QWidget):
         keys = [k for k in self.config.get("tabs_visible", DEFAULT_TABS) if k in TAB_REGISTRY]
         keys = keys or list(DEFAULT_TABS)
         icon_only = self._nav_icon_only = len(keys) > MAX_LABELED_TABS
+        self.nav_row.setSpacing(3 if len(keys) > 9 else 5)
         self.nav_buttons = {}
         self.nav_order = []
         for pos, key in enumerate(keys, start=1):
@@ -479,6 +491,16 @@ class DynamicIslandWindow(QWidget):
         self.tools_widget.volume_changed.connect(self.volume_service.set_percent)
         self.volume_service.refresh()
 
+        # AI agents (Claude Code / Codex)
+        self.agent_service.changed.connect(self._on_agents_changed)
+        self.agent_service.permission_requested.connect(self._on_agent_permission)
+        self.agent_service.finished.connect(self._on_agent_finished)
+        self.agent_service.needs_attention.connect(self._on_agent_attention)
+        self.agents_widget.ask_about_window.connect(self._robo_dropped)
+        self.agents_widget.question_submitted.connect(self._robo_question)
+        self.agents_widget.message.connect(lambda m: self.idle_pill.flash(m[:60], self.theme["accent"], 3500))
+        self.ai_service.response_ready.connect(self._robo_answer)
+
         # Tasks, water, prayer
         self.tasks_service.reminder.connect(self._on_task_reminder)
         self.tasks_service.changed.connect(self._sync_task_alert)
@@ -540,6 +562,89 @@ class DynamicIslandWindow(QWidget):
     def _on_build_finished(self, name, duration):
         self.idle_pill.flash(f"✅ {name} · {format_seconds(duration)}", self.theme["success"], 8000)
         self.notify.emit("🔨 Task finished", f"{name} finished after {format_seconds(duration)}.")
+
+    # --------------------------------------------------------- AI agents
+    def _migrate_new_defaults(self):
+        """Give existing users the Agents tab and Robo once (they can remove them again)."""
+        if self.config.get("agents_migrated", False):
+            return
+        tabs = list(self.config.get("tabs_visible", DEFAULT_TABS))
+        if "agents" not in tabs:
+            tabs.insert(1 if tabs else 0, "agents")
+            self.config.set("tabs_visible", tabs)
+        if self.config.get("pill_left", "robo") == "ai_dot":
+            self.config.set("pill_left", "robo")
+        self.config.set("agents_migrated", True)
+
+    def _agent_sound(self):
+        if self.config.get("agent_sounds", True) and self.config.get("sound_effects", True):
+            QApplication.beep()
+
+    def _on_agents_changed(self):
+        status, activity = self.agent_service.summary()
+        self.idle_pill.set_robo_mood(mood_for(status))
+        if self.agent_service.pending:
+            req = self.agent_service.pending[0]
+            self.idle_pill.set_activity("agent", f"🙋 {req['agent']} asks: {req['summary']}", None,
+                                        self.theme["warning"], priority=40)
+        elif status == "working" and activity:
+            self.idle_pill.set_activity("agent", activity, None, self.theme["accent"], priority=5)
+        elif status == "waiting":
+            self.idle_pill.set_activity("agent", "🙋 Your AI is waiting for you", None,
+                                        self.theme["warning"], priority=35)
+        else:
+            self.idle_pill.clear_activity("agent")
+
+    def _on_agent_permission(self, req):
+        self._agent_sound()
+        self.notify.emit(f"🙋 {req['agent']} needs permission", f"{req['summary']}\n{req['detail'][:120]}")
+        if self.config.get("agent_auto_open", True) and not self.fullscreen_hidden:
+            self.open_tab(TAB_AGENTS)
+
+    def _on_agent_attention(self, message):
+        self._agent_sound()
+        self.notify.emit("🙋 Your AI is waiting", message[:160])
+
+    def _on_agent_finished(self, info):
+        where = f" · {info['project']}" if info.get("project") else ""
+        self.idle_pill.flash(f"✅ {info['agent']} finished{where}", self.theme["success"], 9000)
+        self._agent_sound()
+        self.notify.emit(f"✅ {info['agent']} finished{where}", (info.get("answer") or "Done.")[:200])
+
+    # Robo dragged onto a window: capture it, then ask the connected AI about it
+    def _robo_dropped(self, global_pos):
+        self.collapse()
+        QTimer.singleShot(450, lambda: self._robo_capture_at(global_pos))
+
+    def _robo_capture_at(self, global_pos):
+        screen = QApplication.screenAt(global_pos.toPoint()) or QApplication.primaryScreen()
+        ratio = screen.devicePixelRatio() or 1.0
+        title, pixmap = "this screen", None
+        hit = win_input.window_at(global_pos.x() * ratio, global_pos.y() * ratio)
+        if hit:
+            title, (l, t, r, b) = hit
+            sg = screen.geometry()
+            pixmap = screen.grabWindow(0, int(l / ratio) - sg.x(), int(t / ratio) - sg.y(),
+                                       int((r - l) / ratio), int((b - t) / ratio))
+        if pixmap is None or pixmap.isNull():
+            pixmap = screen.grabWindow(0)
+        self._robo_capture = (title or "this window", pixmap)
+        self.open_tab(TAB_AGENTS)
+        self.raise_()
+        self.activateWindow()
+        self.agents_widget.start_question(self._robo_capture[0])
+
+    def _robo_question(self, text):
+        if not self._robo_capture:
+            return
+        title, pixmap = self._robo_capture
+        self.ai_service.ask_about_pixmap(
+            pixmap, f"This is a screenshot of the window “{title}”. {text}", title="Robo")
+
+    def _robo_answer(self, title, content):
+        if title == "Robo":
+            self.agents_widget.show_answer(title, content)
+            self.idle_pill.flash("👾 Robo has an answer", self.theme["accent"], 5000)
 
     # ---------------------------------------------- Tasks / water / prayer
     def _on_task_reminder(self, task):
@@ -736,16 +841,23 @@ class DynamicIslandWindow(QWidget):
             return
         if self.tucked:
             self._reveal(animate=False)
+        self._stop_glide()
+        self.setWindowOpacity(1.0)
         self.is_expanded = True
         self._update_passthrough()
+        start = self.geometry()
+        final = QRect(self._centered_x(self.expanded_w), self._rest_y(), self.expanded_w, self.expanded_h)
+        # Resize the real window once, then grow the painted shape inside it
+        self._shape = QRectF(start.x() - final.x(), start.y() - final.y(), start.width(), start.height())
+        self.setGeometry(final)
         self.idle_pill.hide()
         self.expanded_container.show()
-        self._animate_to(QRect(self._centered_x(self.expanded_w), self._rest_y(),
-                               self.expanded_w, self.expanded_h))
+        self._start_morph(self._shape, QRectF(0, 0, final.width(), final.height()), 340, None)
 
     def collapse(self):
         if not self.is_expanded:
             return
+        self._finish_morph()
         self.is_expanded = False
         self.summoned = False
         self._zone_inside = True    # don't treat the cursor as "just arrived"
@@ -753,8 +865,80 @@ class DynamicIslandWindow(QWidget):
         self._update_passthrough()
         self.expanded_container.hide()
         self.idle_pill.show()
-        self._animate_to(QRect(self._centered_x(self.compact_w), self._rest_y(),
-                               self.compact_w, self.compact_h))
+        cur = self.geometry()
+        final = QRect(self._centered_x(self.compact_w), self._rest_y(), self.compact_w, self.compact_h)
+        if not self.isVisible():
+            self._shape = None
+            self.setGeometry(final)
+            return
+        # Shrink the painted shape, then resize the real window once at the end
+        end = QRectF(final.x() - cur.x(), final.y() - cur.y(), final.width(), final.height())
+        self._start_morph(QRectF(0, 0, cur.width(), cur.height()), end, 280, self._collapse_finished)
+
+    def _collapse_finished(self):
+        self._shape = None
+        if not self.is_expanded:
+            self.setGeometry(QRect(self._centered_x(self.compact_w), self._rest_y(),
+                                   self.compact_w, self.compact_h))
+        self._layout_children()
+        self.update()
+
+    # ------------------------------------------------ shape morph (smooth)
+    def _start_morph(self, start, end, duration, on_done):
+        old = getattr(self, "_morph", None)
+        if old is not None:
+            old.stop()
+            old.deleteLater()
+        self._shape = QRectF(start)
+        self._morph_done = on_done
+        self._morph = QVariantAnimation(self)
+        self._morph.setStartValue(QRectF(start))
+        self._morph.setEndValue(QRectF(end))
+        self._morph.setDuration(duration)
+        self._morph.setEasingCurve(QEasingCurve.Type.OutCubic)
+        self._morph.valueChanged.connect(self._on_morph_frame)
+        self._morph.finished.connect(self._on_morph_finished)
+        self._layout_children()
+        self._morph.start()
+
+    def _on_morph_frame(self, rect):
+        self._shape = QRectF(rect)
+        self._layout_children()
+        self.update()
+
+    def _on_morph_finished(self):
+        done, self._morph_done = getattr(self, "_morph_done", None), None
+        if done is not None:
+            done()
+        else:
+            self._shape = None
+            self._layout_children()
+            self.update()
+
+    def _morphing(self):
+        m = getattr(self, "_morph", None)
+        return m is not None and m.state() == m.State.Running
+
+    def _finish_morph(self):
+        """Jump a running open/close animation to its end state."""
+        if self._morphing():
+            self._morph.stop()
+            self._on_morph_finished()
+
+    def _layout_children(self):
+        """Place the pill and the panel for the current (possibly animating) shape."""
+        shape = self._shape if self._shape is not None else QRectF(0, 0, self.width(), self.height())
+        side = NOTCH_SHOULDER + 2 if self.notch_mode else 4
+        top = 2 if self.notch_mode else 4
+        self.idle_pill.setGeometry(int(shape.x()) + side, int(shape.y()) + top,
+                                   max(0, int(shape.width()) - 2 * side), max(0, int(shape.height()) - 2 * top))
+        inset = max(0, side - 2)             # keep content inside the notch's curved sides
+        clip = shape.adjusted(inset, 0, -inset, -2).toRect()
+        self.clip.setGeometry(clip)
+        cw = self.expanded_w - 2 * side
+        # The panel stays put on screen; only the clip around it grows or shrinks
+        self.expanded_container.setGeometry(int((self.width() - cw) / 2) - clip.x(), top - clip.y(),
+                                            cw, self.expanded_h - 2 * top - 2)
 
     # -------------------------------------------------------- Visibility
     def _setup_visibility(self):
@@ -840,7 +1024,7 @@ class DynamicIslandWindow(QWidget):
                     and not self.summoned):
                 self.leave_timer.start(self.config.get("collapse_delay_ms", 300))
             return
-        if not self.isVisible() or self.tucked:
+        if not self.isVisible() or self.tucked or self._morphing():
             return
         inside = self._hot_zone().contains(pos)
         if not inside:
@@ -1006,16 +1190,13 @@ class DynamicIslandWindow(QWidget):
     def resizeEvent(self, event):
         # Pill follows the window; the expanded panel keeps its final size and is
         # simply revealed/clipped by the window while it animates.
-        side = NOTCH_SHOULDER + 2 if self.notch_mode else 4
-        top = 2 if self.notch_mode else 4
-        self.idle_pill.setGeometry(side, top, max(0, self.width() - 2 * side), max(0, self.height() - 2 * top))
-        cw = self.expanded_w - 2 * side
-        self.expanded_container.setGeometry(int((self.width() - cw) / 2), top, cw, self.expanded_h - 2 * top - 2)
+        self._layout_children()
         if event is not None:
             super().resizeEvent(event)
 
     def _animate_to(self, target_rect, on_done=None, duration=None, easing=None):
         """Move/resize smoothly. Growing gets a soft spring, everything else eases out."""
+        self._finish_morph()
         old = getattr(self, "anim", None)
         if old is not None:
             old.stop()
@@ -1098,6 +1279,7 @@ class DynamicIslandWindow(QWidget):
         return group
 
     def _stop_glide(self):
+        self._finish_morph()
         glide = getattr(self, "glide", None)
         if glide is not None:
             glide.stop()
@@ -1307,6 +1489,7 @@ class DynamicIslandWindow(QWidget):
         self.info_widget.update_theme(self.theme)
         self.tasks_widget.update_theme(self.theme)
         self.day_widget.update_theme(self.theme)
+        self.agents_widget.update_theme(self.theme)
         self._style_nav()
         self.update()
 
@@ -1314,8 +1497,12 @@ class DynamicIslandWindow(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-        w, h = self.width(), self.height()
-        radius = h / 2 if not self.is_expanded else 24
+        shape = self._shape if self._shape is not None else QRectF(0, 0, self.width(), self.height())
+        painter.translate(shape.topLeft())
+        w, h = shape.width(), shape.height()
+        # Corner radius eases between pill and panel as the shape grows
+        grow = max(0.0, min(1.0, (h - self.compact_h) / max(1.0, self.expanded_h - self.compact_h)))
+        radius = min(h / 2, self.compact_h / 2 + grow * (24 - self.compact_h / 2)) if h > self.compact_h + 2 else h / 2
 
         # Background Gradient
         gradient = QLinearGradient(0, 0, 0, h)
@@ -1331,7 +1518,7 @@ class DynamicIslandWindow(QWidget):
         if self.notch_mode:
             # No outline: the notch melts into the screen bezel
             painter.setPen(Qt.PenStyle.NoPen)
-            painter.drawPath(notch_path(w, h, self.is_expanded))
+            painter.drawPath(notch_path(w, h, h > self.compact_h + 8))
         else:
             # Draw rounded pill shape
-            painter.drawRoundedRect(1, 1, w - 2, h - 2, radius, radius)
+            painter.drawRoundedRect(QRectF(1, 1, w - 2, h - 2), radius, radius)

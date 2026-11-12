@@ -83,6 +83,21 @@ class AIService(QObject):
 
         threading.Thread(target=worker, daemon=True).start()
 
+    def ask_about_pixmap(self, pixmap, prompt, title="Robo"):
+        """Send a question plus a captured window image to the connected AI."""
+        self.set_status("Seeing Screen")
+        b64_img = self._pixmap_to_base64(pixmap)
+
+        def worker():
+            try:
+                provider = self.config.get("ai_provider", "gemini")
+                self.response_ready.emit(title, self._dispatch_vision_query(provider, prompt, b64_img))
+            except Exception as e:
+                self.response_ready.emit(title, f"Could not ask the AI: {e}")
+            finally:
+                self.set_status("Idle")
+        threading.Thread(target=worker, daemon=True).start()
+
     def _dispatch_vision_query(self, provider, prompt, b64_img):
         # 1. Google Gemini (Free tier available)
         if provider == "gemini":

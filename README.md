@@ -46,6 +46,18 @@ Right-click the island (or the tray icon) ➔ **`🎨 Customize Island…`**. A 
   * **Hide at the top:** the island tucks away above the screen and slides down when your cursor touches the top edge near it. Optionally it peeks down for finished timers, builds and alerts. Quick toggle: right-click ➔ `🫥 Hide at Top`.
   * Hover/click-to-open, notch mode and theme are all in one place.
 
+### 👾 AI Agents & Robo (NEW in 1.7)
+Follow **Claude Code** and **Codex** from the island, so you can look away while your AI works.
+* **Live activity:** the pill and the **👾 Agents** tab show what the agent is doing right now: which file it reads or edits, which command it runs.
+* **Allow / Deny in the island:** when Claude Code asks for permission, the island opens with the exact command or file and **✓ Allow** / **✕ Deny** buttons. If you don't answer (or the island is closed), Claude Code simply asks in its own window as usual. Nothing is ever approved automatically.
+* **Know when it's done:** a sound, a green flash in the pill and a Windows notification when the agent finishes or is waiting for you, with its last answer and a history in the Agents tab.
+* **Robo:** a little character that lives in the pill. He looks focused while your AI works, curious when it needs you, and happy when it's done. Poke him too often and he gets dizzy. **Drag Robo onto any window** to ask the AI you connected (AI settings) about what's on it.
+* **Connect:** Agents tab ➔ **🔗 Connect AI** ➔ *Connect Claude Code* (adds hooks to `~/.claude/settings.json`, with a backup, and removes only its own entries on Disconnect). Codex is supported for finish alerts.
+* **Private:** agent activity is sent only to the island on your own PC (`127.0.0.1`, protected by a secret token). The Robo question and window screenshot go to the AI you connected, as they would if you asked it directly.
+
+### 🧈 Fluid motion (NEW in 1.7)
+Opening and closing no longer resize the real window on every frame. The window changes size once and the island's shape grows or shrinks inside it, with its corners easing between pill and panel. The notch also **floats over your windows without taking screen space**.
+
 ### 🪄 Smooth & easy (NEW in 1.6)
 * **Slim, smooth notch:** the folded notch is only 24–32px tall (Compact / Comfortable / Roomy), with soft curved shoulders and no outline. It floats over your windows without taking screen space; clicks pass through it. An optional setting (off by default) pushes maximized windows down below it instead.
 * **Gentle motion:** the island opens with a soft spring and closes smoothly. Hiding, auto-hide and full screen all glide up into the top edge and fade, and it slides back down when it returns.
