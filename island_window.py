@@ -688,7 +688,7 @@ class DynamicIslandWindow(QWidget):
     # --------------------------------------------- keep apps below the notch
     def _wants_reserved_space(self):
         native = QApplication.platformName() == "windows"   # never with test/offscreen windows
-        return (bool(self.config.get("reserve_top_space", True)) and win_input.IS_WINDOWS and native
+        return (bool(self.config.get("push_windows_down", False)) and win_input.IS_WINDOWS and native
                 and not self.user_hidden and not self.fullscreen_hidden and not self.tucked
                 and not self._autohide_enabled() and self.isVisible())
 

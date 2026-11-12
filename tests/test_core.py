@@ -582,7 +582,7 @@ sys.path.insert(0, os.getcwd())
 from PyQt6.QtWidgets import QApplication
 app = QApplication([])
 from config import ConfigManager
-c = ConfigManager(); c.set("notch_mode", True); c.set("reserve_top_space", True); c.set("visibility_mode", "always")
+c = ConfigManager(); c.set("notch_mode", True); c.set("push_windows_down", True); c.set("visibility_mode", "always")
 from services.appbar import work_area_top
 before = work_area_top()
 from services.media_service import MediaService

@@ -175,7 +175,7 @@ class SidebarPages(QWidget):
 LIVE_KEYS = ["pill_left", "pill_center", "pill_right", "compact_width", "island_size", "tabs_visible",
              "visibility_mode", "peek_on_activity", "hide_in_fullscreen", "hide_for_apps", "lyrics_enabled",
              "through_mode", "through_open", "island_offset_x", "expand_on_hover", "click_to_expand",
-             "notch_mode", "theme", "global_hotkey", "command_bar_hotkey", "reserve_top_space"]
+             "notch_mode", "theme", "global_hotkey", "command_bar_hotkey", "push_windows_down"]
 
 
 class CustomizeDialog(QDialog):
@@ -269,9 +269,9 @@ class CustomizeDialog(QDialog):
             self.size_combo.addItem(label, key)
         self.size_combo.setCurrentIndex(max(0, self.size_combo.findData(self.config.get("island_size", "comfortable"))))
         form.addRow("<b>Size</b>", self.size_combo)
-        self.chk_reserve = QCheckBox("Keep apps below it: maximized windows (browser tabs, title bars) "
-                                     "start under the notch instead of behind it")
-        self.chk_reserve.setChecked(bool(self.config.get("reserve_top_space", True)))
+        self.chk_reserve = QCheckBox("Push windows down below it (off by default: this takes a strip "
+                                     "of screen space away from every app)")
+        self.chk_reserve.setChecked(bool(self.config.get("push_windows_down", False)))
         form.addRow("", self.chk_reserve)
         form.addRow(QLabel("Pick what the small pill shows. Live activities (timers, builds, alerts) "
                            "temporarily replace the middle."))
@@ -666,7 +666,7 @@ class CustomizeDialog(QDialog):
         c.set("notch_mode", self.rb_notch.isChecked())
         c.set("theme", self.theme_combo.currentData())
         c.set("island_size", self.size_combo.currentData())
-        c.set("reserve_top_space", self.chk_reserve.isChecked())
+        c.set("push_windows_down", self.chk_reserve.isChecked())
         for key, edit in (("global_hotkey", self.hk_open), ("command_bar_hotkey", self.hk_bar)):
             text = edit.text().strip()
             if text and parse_hotkey(text):

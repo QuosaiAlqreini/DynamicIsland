@@ -47,7 +47,7 @@ Right-click the island (or the tray icon) ➔ **`🎨 Customize Island…`**. A 
   * Hover/click-to-open, notch mode and theme are all in one place.
 
 ### 🪄 Smooth & easy (NEW in 1.6)
-* **Slim, smooth notch that doesn't cover your apps:** the folded notch is only 24–32px tall (Compact / Comfortable / Roomy), with soft curved shoulders and no outline. **Keep apps below it** (on by default) reserves that thin strip at the top, like the taskbar does at the bottom, so maximized windows such as your browser start under the notch instead of behind it. The space is given back when the island hides, goes full screen or quits. Turn it off in Customize ➔ ✨ Look & pill.
+* **Slim, smooth notch:** the folded notch is only 24–32px tall (Compact / Comfortable / Roomy), with soft curved shoulders and no outline. It floats over your windows without taking screen space; clicks pass through it. An optional setting (off by default) pushes maximized windows down below it instead.
 * **Gentle motion:** the island opens with a soft spring and closes smoothly. Hiding, auto-hide and full screen all glide up into the top edge and fade, and it slides back down when it returns.
 * **Easier to find your way:** the open tab shows its name next to its icon.
 * **One settings window with a sidebar:** Look & pill · Tabs · My info · Visibility · Shortcuts · Day, AI & more. Every change shows on the island immediately; **Cancel** undoes everything, **Done** keeps it.
