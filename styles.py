@@ -1,4 +1,21 @@
 THEMES = {
+    "midnight": {
+        "name": "Midnight (pure black)",
+        "bg_color": "#000000",
+        "bg_secondary": "#0c0c0e",
+        "border_color": "#1f1f23",
+        "text_primary": "#f5f5f7",
+        "text_secondary": "#8e8e93",
+        "accent": "#30d158",
+        "accent_secondary": "#bf5af2",
+        "accent_glow": "rgba(48, 209, 88, 0.35)",
+        "danger": "#ff453a",
+        "warning": "#ff9f0a",
+        "success": "#30d158",
+        "pill_gradient_start": "#000000",
+        "pill_gradient_end": "#000000",
+        "card_bg": "#111113"
+    },
     "obsidian": {
         "name": "Obsidian Dark",
         "bg_color": "#0b0c10",

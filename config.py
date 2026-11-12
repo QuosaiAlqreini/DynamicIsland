@@ -6,12 +6,12 @@ CONFIG_DIR = Path.home() / ".dynamic_island"
 CONFIG_FILE = CONFIG_DIR / "config.json"
 
 DEFAULT_CONFIG = {
-    "theme": "obsidian",
+    "theme": "midnight",
     "expand_on_hover": True,
     "hover_delay_ms": 120,
     "collapse_delay_ms": 300,
     "anchor_top_offset": 8,
-    "compact_width": 200,
+    "compact_width": 76,
     "compact_height": 36,
     "expanded_width": 480,
     "expanded_height": 185,
@@ -56,7 +56,7 @@ DEFAULT_CONFIG = {
         "make", "cmake --build", "ninja", "flutter build"
     ],
     # --- Visibility & customization ---
-    "visibility_mode": "always",       # "always" | "autohide" (tucked at the top, cursor reveals)
+    "visibility_mode": "strip",        # "strip" (thin strip until called) | "always" | "autohide"
     "hide_in_fullscreen": True,
     "peek_on_activity": True,          # auto-hide mode: slide down for timers/builds/alerts
     "reveal_zone_px": 220,             # half-width of the top-edge hot zone around the island
@@ -66,13 +66,14 @@ DEFAULT_CONFIG = {
     "through_dwell_ms": 350,
     "through_opacity": 0.35,           # pill fades to this while the cursor is over it
     "island_offset_x": 0,              # px from screen center (negative = left)
-    "pill_left": "robo",
-    "pill_center": "clock",
-    "pill_right": "battery_icon",
+    "pill_left": "none",
+    "pill_center": "robo",
+    "pill_right": "none",
     "agent_port": 47821,               # local port Claude Code / Codex report to
     "agent_auto_open": True,           # open the island when an agent asks for permission
     "agent_sounds": True,
-    "tabs_visible": ["media", "agents", "shelf", "tasks", "notes", "focus", "day", "keys", "ai", "system", "tools"],
+    "agent_inline_prompt": True,       # Allow / Deny right in the folded island
+    "tabs_visible": ["home", "agents", "media", "shelf", "tasks", "notes", "focus", "day", "keys", "ai", "system", "tools"],
     "hide_for_apps": [],               # exe names: hide the island while one is in front
     # --- Tasks, water, prayer, pomodoro, lyrics, command bar ---
     "tasks": [],

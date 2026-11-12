@@ -12,6 +12,8 @@ from services.taskbar_service import TaskbarService, WINDHAWK_PRESETS
 class SettingsDialog(QDialog):
     def __init__(self, theme, ai_service, taskbar_service, parent=None):
         super().__init__(parent)
+        # The island is always-on-top; settings windows must sit above it
+        self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
         self.theme = theme
         self.ai_service = ai_service
         self.taskbar_service = taskbar_service

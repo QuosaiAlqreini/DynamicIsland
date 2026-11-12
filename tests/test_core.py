@@ -204,7 +204,7 @@ def test_through_mode_click_does_not_open(qapp):
     from PyQt6.QtCore import QPoint
     w = _through_island(qapp, "dwell")
     assert w._passthrough
-    inside = w.geometry().center()
+    inside = w.body_global().center()
     w._through_step(inside, False, 0.0)       # cursor arrives
     assert w.windowOpacity() < 1 or True      # fade is best-effort per platform
     w._through_step(inside, True, 0.1)        # user clicks the tab underneath
@@ -222,7 +222,7 @@ def test_through_mode_click_does_not_open(qapp):
 def test_through_mode_edge_open_and_drag_in(qapp):
     from PyQt6.QtCore import QPoint
     w = _through_island(qapp, "edge")
-    g = w.geometry()
+    g = w.body_global()
     on_pill, at_edge, away = g.center(), QPoint(g.center().x(), 0), QPoint(5, 500)
     w._through_step(on_pill, False, 0.0)
     w._through_step(on_pill, False, 2.0)      # resting on the pill is not enough
@@ -241,17 +241,19 @@ def test_through_mode_edge_open_and_drag_in(qapp):
 def test_position_offset(qapp):
     from config import ConfigManager
     w = _through_island(qapp)
-    centered = w.x()
-    ConfigManager().set("island_offset_x", -200)
+    centered = w.body_global().center().x()
+    ConfigManager().set("island_offset_x", -100)
     w.apply_customization()
     _settle(qapp)
-    assert w.x() == centered - 200
+    assert abs(w.body_global().center().x() - (centered - 100)) <= 1
+    w.summoned = True          # opened on purpose: stays open without the cursor on it
     w.expand()
     _settle(qapp)
-    assert w.geometry().center().x() < w._get_screen_geometry().center().x()
+    assert w.body_global().center().x() < w._get_screen_geometry().center().x()
+    assert w.body_global().width() == w.expanded_w
     w.collapse()
     _settle(qapp)
-    assert w.width() == w.compact_w and w._shape is None
+    assert w.body_global().width() == w.compact_w
     ConfigManager().set("island_offset_x", 0)
 
 
@@ -436,7 +438,7 @@ def test_manual_show_hide_and_style(qapp):
     end = time.monotonic() + 0.8
     while time.monotonic() < end:
         qapp.processEvents()
-    assert w.notch_mode and w.y() == w._get_screen_geometry().y()
+    assert w.notch_mode and w.body_global().y() == w._get_screen_geometry().y()
     w.grab()                                     # notch painting must not crash
     w.set_style(False)
     assert not w.notch_mode
@@ -514,30 +516,26 @@ def test_town_search_live(qapp):
 
 
 def test_island_and_notch_really_look_different(qapp):
-    """Switching style moves the window to the top edge and changes the silhouette."""
-    import time
+    """Switching style moves the island to the top edge and changes the silhouette."""
+    from config import ConfigManager
+    ConfigManager().set("visibility_mode", "always")
     w = _island()
     w.show()
-
-    def settle():
-        end = time.monotonic() + 0.8
-        while time.monotonic() < end:
-            qapp.processEvents()
-
     w.set_style(False)
-    settle()
-    island_img = w.grab().toImage()
-    assert w.y() == w._get_screen_geometry().y() + w.top_offset
-    w.set_style(True)                    # also shows a flash that widens the pill
-    settle()
-    notch_img = w.grab().toImage()
-    assert w.y() == w._get_screen_geometry().y(), "notch must sit on the top edge"
-    assert island_img.pixelColor(15, 0).alpha() < 100           # island: floats below the edge (only soft edge)
-    assert notch_img.pixelColor(15, 0).alpha() > 200            # notch: joins the screen edge
-    assert notch_img.pixelColor(2, w.height() - 2).alpha() == 0  # notch: narrower at the bottom
+    _settle(qapp, 0.8)
+    top = w._get_screen_geometry().y()
+    assert w.body_global().y() == top + w.top_offset          # island floats below the edge
+    w.set_style(True)
+    _settle(qapp, 0.8)
+    b = w._body.toRect()
+    img = w.grab().toImage()
+    assert w.body_global().y() == top, "notch must sit on the top edge"
+    assert img.pixelColor(b.center().x(), 1).alpha() > 200     # notch joins the screen edge
+    assert img.pixelColor(b.x() + 2, b.bottom() - 1).alpha() == 0   # narrower at the bottom (curved sides)
+    assert img.pixelColor(5, 5).alpha() == 0                   # rest of the window is transparent
     w.set_style(False)
-    settle()
-    assert w.y() == w._get_screen_geometry().y() + w.top_offset
+    _settle(qapp, 0.8)
+    assert w.body_global().y() == top + w.top_offset
 
 
 def test_customize_applies_live_and_cancel_undoes(qapp):
@@ -555,7 +553,7 @@ def test_customize_applies_live_and_cancel_undoes(qapp):
     d.size_combo.setCurrentIndex(d.size_combo.findData("roomy"))
     _settle(qapp, 0.8)
     assert w.notch_mode and w.base_compact_w > start_w       # applied live, without Save
-    assert w.y() == w._get_screen_geometry().y()
+    assert w.body_global().y() == w._get_screen_geometry().y()
     d.reject()                                               # Cancel puts everything back
     _settle(qapp, 0.8)
     assert not w.notch_mode and w.base_compact_w == start_w
@@ -751,6 +749,8 @@ def test_connect_claude_writes_backup(qapp, tmp_path, monkeypatch):
 
 def test_island_reacts_to_agent(qapp):
     from island_window import TAB_AGENTS
+    from config import ConfigManager
+    ConfigManager().set("agent_inline_prompt", False)
     w = _island()
     w.show()
     svc = w.agent_service
@@ -768,3 +768,62 @@ def test_island_reacts_to_agent(qapp):
     assert not svc.pending and not w.agents_widget.card.isVisible()
     svc._handle_event({"hook_event_name": "Stop", "session_id": "a", "last_assistant_message": "Pushed."})
     assert w.idle_pill.robo_mood == "happy" and "agent" not in w.idle_pill.activities
+
+
+def test_inline_allow_deny_bar_and_strip(qapp):
+    """A permission request widens the folded island into an Allow / Deny bar."""
+    from config import ConfigManager
+    c = ConfigManager()
+    c.set("agent_inline_prompt", True)
+    c.set("visibility_mode", "strip")
+    w = _island()
+    w.show()
+    _settle(qapp, 0.4)
+    win_before = (w.x(), w.y(), w.width(), w.height())
+    w._tuck()
+    _settle(qapp, 0.5)
+    assert w.tucked and w.isVisible() and w.body_global().height() <= 6      # resting strip
+    w.agent_service._handle_event({"hook_event_name": "PermissionRequest", "session_id": "z", "_request_id": "q1",
+                                   "tool_name": "Bash", "tool_input": {"command": "npm install stripe"}})
+    _settle(qapp, 0.6)
+    assert w.prompting and not w.is_expanded and w.prompt_bar.isVisible()
+    assert "npm install stripe" in w.prompt_label.text()
+    assert w.body_global().width() > 300 and not w._passthrough            # wide and clickable
+    w.prompt_allow.click()
+    _settle(qapp, 0.6)
+    assert not w.agent_service.pending and not w.prompting and w.idle_pill.isVisible()
+    w.expand()
+    _settle(qapp, 0.6)
+    w.collapse()
+    _settle(qapp, 0.6)
+    # the real window never moved or resized through all of that
+    assert (w.x(), w.y(), w.width(), w.height()) == win_before
+    c.set("visibility_mode", "always")
+
+
+def test_hotkey_owner_hints():
+    from services.hotkey_owner import guess_owner, normalize
+    assert normalize("Ctrl+Alt+Space") == normalize("alt+control+SPACE") == "alt+ctrl+space"
+    assert "Claude" in guess_owner("Ctrl+Alt+Space", running={"claude.exe", "explorer.exe"})
+    assert "PowerToys" in guess_owner("Alt+Space", running={"PowerToys.PowerLauncher.exe"})
+    assert "ChatGPT" in guess_owner("Alt+Space", running=set())           # not running: "often used by"
+    assert "Windows itself" in guess_owner("Win+Shift+Q", running=set())
+    assert "Discord" in guess_owner("Ctrl+Alt+F7", running={"discord.exe"})  # unknown combo: likely apps
+    assert "doesn't say" in guess_owner("Ctrl+Alt+F7", running={"explorer.exe"})
+
+
+def test_volume_hud_and_dialogs_on_top(qapp):
+    from PyQt6.QtCore import Qt
+    from modules.customize_dialog import CustomizeDialog
+    w = _island()
+    w.show()
+    w._on_volume_hud(40, False)                 # first reading: silent
+    assert "volume" not in w.idle_pill.activities
+    w._on_volume_hud(46, False)
+    act = w.idle_pill.activities["volume"]
+    assert "46%" in act["text"] and abs(act["progress"] - 0.46) < 0.01
+    w._on_volume_hud(46, True)
+    assert "Muted" in w.idle_pill.activities["volume"]["text"]
+    d = CustomizeDialog(w.theme, w.info_service, w)
+    assert d.windowFlags() & Qt.WindowType.WindowStaysOnTopHint
+    d.reject()

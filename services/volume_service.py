@@ -93,6 +93,7 @@ class VolumeService(QObject):
         super().__init__(parent)
         self.available = False
         self.percent, self.muted = 50, False
+        self.error = ""
         self._q = queue.Queue()
         if sys.platform == "win32":
             threading.Thread(target=self._worker, name="volume", daemon=True).start()
@@ -104,10 +105,25 @@ class VolumeService(QObject):
             self.available = True
             self.volume_changed.emit(self.percent, self.muted)
         except Exception as e:
+            self.error = str(e)
             print(f"[volume] direct volume control unavailable, using volume keys: {e}")
             return
         while True:
-            cmd, arg = self._q.get()
+            try:
+                cmd, arg = self._q.get(timeout=0.3)
+            except queue.Empty:
+                # Nothing asked: watch for changes made with the keyboard volume keys
+                try:
+                    now = vol.get()
+                    if now != (self.percent, self.muted):
+                        self.percent, self.muted = now
+                        self.volume_changed.emit(self.percent, self.muted)
+                except Exception:
+                    try:
+                        vol = _EndpointVolume()
+                    except Exception:
+                        pass
+                continue
             try:
                 # Collapse a burst of slider moves into the latest one
                 while cmd == "set" and not self._q.empty():
@@ -135,14 +151,17 @@ class VolumeService(QObject):
         if self.available or sys.platform != "win32":
             self._q.put(("set", int(percent)))
         else:
-            # No pycaw: nudge with the volume keys (2% per press)
-            steps = (int(percent) - self.percent) // 2
+            # No direct control: nudge with the volume keys (2% per press)
+            steps = int(round((int(percent) - self.percent) / 2))
             if steps:
                 win_input.tap_vk(0xAF if steps > 0 else 0xAE, abs(steps))
-                self.percent += steps * 2
+                self.percent = max(0, min(100, self.percent + steps * 2))
+                self.volume_changed.emit(self.percent, self.muted)
 
     def toggle_mute(self):
         if self.available:
             self._q.put(("mute", None))
         else:
             win_input.tap_vk(0xAD)
+            self.muted = not self.muted
+            self.volume_changed.emit(self.percent, self.muted)

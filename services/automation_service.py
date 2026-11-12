@@ -303,7 +303,8 @@ class AutomationService(QObject):
                 if self.hotkeys.register(hid, hotkey):
                     self._id_to_macro[hid] = macro
                 else:
-                    self.status[hotkey] = self.hotkeys.last_error or "could not register"
+                    from services.hotkey_owner import guess_owner
+                    self.status[hotkey] = guess_owner(hotkey)
         self.engine.set_hotstrings(self.hotstrings)
         if self.hotstrings_enabled and self.hotstrings:
             self.engine.start()

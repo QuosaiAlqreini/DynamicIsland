@@ -46,6 +46,15 @@ Right-click the island (or the tray icon) ➔ **`🎨 Customize Island…`**. A 
   * **Hide at the top:** the island tucks away above the screen and slides down when your cursor touches the top edge near it. Optionally it peeks down for finished timers, builds and alerts. Quick toggle: right-click ➔ `🫥 Hide at Top`.
   * Hover/click-to-open, notch mode and theme are all in one place.
 
+### 🖤 New look & feel (NEW in 1.8)
+* **Rests as a thin strip:** the island sits as a tiny strip on the top edge and opens into the notch when your cursor touches the top (or a timer, alert or your AI needs you). The strip glows orange while your AI works and green when it's done. Choose *strip*, *always visible* or *hide completely* in Settings ➔ Visibility.
+* **Minimal folded notch:** pure black with just Robo; it widens only when there's something to show.
+* **Allow / Deny right in the notch:** a permission request turns the folded island into a slim bar with **Allow** and **Deny**. Click the text for details.
+* **Home dashboard:** the island opens on a tile view (your AI, music, focus, time, settings) with a small toolbar: 🏠 home, ＋ add task, 🔎 command bar, 🔊 mute, **⚙ settings**, ✕ close.
+* **No more jitter:** the window itself never moves or resizes any more; only the island's shape animates inside it.
+* **Volume popup:** changing the volume (keyboard keys, slider, anything) shows the level in the island.
+* **Settings windows open above the island**, and a taken shortcut now says which app probably owns it (a best guess: Windows doesn't report the owner).
+
 ### 👾 AI Agents & Robo (NEW in 1.7)
 Follow **Claude Code** and **Codex** from the island, so you can look away while your AI works.
 * **Live activity:** the pill and the **👾 Agents** tab show what the agent is doing right now: which file it reads or edits, which command it runs.

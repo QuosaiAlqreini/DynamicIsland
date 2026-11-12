@@ -4,7 +4,7 @@ from PyQt6.QtWidgets import QWidget
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QPainter, QColor, QFont, QPen, QBrush
 
-DEFAULT_SLOTS = ("ai_dot", "clock", "battery_icon")
+DEFAULT_SLOTS = ("none", "robo", "none")
 TEXT_MAX_SIDE = 110  # max width of a text item in the left/right slot
 
 
@@ -163,6 +163,8 @@ class IdlePillWidget(QWidget):
         w, h = self.width(), self.height()
         painter.setFont(QFont("Segoe UI", 10, QFont.Weight.DemiBold))
         left_slot, center_slot, right_slot = self.slots
+        if self.current_activity() and center_slot == "robo" and right_slot in ("none", ""):
+            right_slot = "robo"          # make room for the text, keep Robo in view
 
         # Left slot (starts at x=10, like the original AI dot)
         lw = self._side_width(painter, left_slot)

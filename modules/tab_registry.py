@@ -1,5 +1,6 @@
 """Tab keys -> (icon, label, tooltip). Order here is the default display order."""
 TAB_REGISTRY = {
+    "home": ("🏠", "Home", "Dashboard: your AI, music, focus, time, settings"),
     "media": ("🎵", "Media", "Media controls"),
     "agents": ("👾", "Agents", "Follow Claude Code / Codex: live activity, Allow / Deny, Robo"),
     "shelf": ("📥", "Shelf", "Dropped files + clipboard history"),
@@ -13,4 +14,4 @@ TAB_REGISTRY = {
     "system": ("⚡", "Sys", "System telemetry"),
     "tools": ("🛠️", "Tools", "Launchers & utilities"),
 }
-DEFAULT_TABS = ["media", "agents", "shelf", "tasks", "notes", "focus", "day", "keys", "ai", "system", "tools"]
+DEFAULT_TABS = ["home", "agents", "media", "shelf", "tasks", "notes", "focus", "day", "keys", "ai", "system", "tools"]

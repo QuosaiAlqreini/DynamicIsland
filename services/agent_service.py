@@ -222,6 +222,12 @@ class AgentService(QObject):
             holder["behavior"] = "allow" if allow else "deny"
             holder["message"] = message
             event.set()
+        for req in self.pending:
+            if req["id"] == request_id and req["session"] in self.sessions:
+                s = self.sessions[req["session"]]
+                s["status"] = "working"
+                s["activity"] = "Allowed, continuing" if allow else "Denied"
+                self._log(s, "✓" if allow else "✕", f"{'Allowed' if allow else 'Denied'}: {req['summary']}")
         self.pending = [p for p in self.pending if p["id"] != request_id]
         self.changed.emit()
 

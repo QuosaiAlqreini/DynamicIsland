@@ -105,3 +105,12 @@ Started: 2026-10-31 16:50
   - Renaming a config key is the simplest way to reset a bad default that live-apply already persisted.
 - **Not verified here:** a real Claude Code / Codex session on Windows (tested with the documented payloads over real HTTP).
 ---
+
+## 2026-11-12 - US-025 (v1.8.0 redesign)
+- **Implemented:** fixed transparent window + animated body rect (no native move/resize), strip resting state, inline Allow/Deny prompt bar, Home dashboard + toolbar, Midnight theme and minimal pill (one-time migration), volume polling HUD, on-top dialogs, hotkey owner hints.
+- **Learnings:**
+  - With a window larger than the visible island: enterEvent must check the body rect; use setMask for the clickable-pill case and WS_EX_TRANSPARENT for click-through.
+  - Anything that can re-target the body (_settle) must be blocked while sliding out, or it cancels the hide.
+  - Programmatic expand() in tests needs summoned=True or the through-mode tick closes it.
+- **Not verified on real Windows:** mask behaviour with click-through off, volume control with a real audio device.
+---

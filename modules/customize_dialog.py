@@ -56,6 +56,8 @@ class PillPreview(QWidget):
 class InfoItemEditor(QDialog):
     def __init__(self, theme, item=None, parent=None):
         super().__init__(parent)
+        # The island is always-on-top; settings windows must sit above it
+        self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
         self.setWindowTitle("Info item")
         self.setStyleSheet(dialog_style(theme))
         self.setMinimumWidth(440)
@@ -181,6 +183,8 @@ LIVE_KEYS = ["pill_left", "pill_center", "pill_right", "compact_width", "island_
 class CustomizeDialog(QDialog):
     def __init__(self, theme, info_service, parent=None):
         super().__init__(parent)
+        # The island is always-on-top; settings windows must sit above it
+        self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
         self.config = ConfigManager()
         self.theme = theme
         self.info = info_service
@@ -283,7 +287,7 @@ class CustomizeDialog(QDialog):
         form.addRow("Middle", self.slot_center)
         form.addRow("Right", self.slot_right)
         self.width_spin = QSpinBox()
-        self.width_spin.setRange(150, 420)
+        self.width_spin.setRange(56, 420)
         self.width_spin.setSingleStep(10)
         self.width_spin.setSuffix(" px")
         self.width_spin.setValue(int(self.config.get("compact_width", 200)))
@@ -440,18 +444,21 @@ class CustomizeDialog(QDialog):
         lay = QVBoxLayout(w)
         lay.addWidget(QLabel("<b>When should the island be on screen?</b>"))
         self.rb_always = QRadioButton("Always visible at the top")
-        self.rb_autohide = QRadioButton("Hide at the top — slide down when my cursor touches the top edge")
+        self.rb_strip = QRadioButton("Rest as a thin strip at the top — opens up when my cursor touches the top edge")
+        self.rb_autohide = QRadioButton("Hide completely — slide down when my cursor touches the top edge")
         group = QButtonGroup(w)
-        group.addButton(self.rb_always)
-        group.addButton(self.rb_autohide)
-        (self.rb_autohide if self.config.get("visibility_mode") == "autohide" else self.rb_always).setChecked(True)
+        for rb in (self.rb_strip, self.rb_always, self.rb_autohide):
+            group.addButton(rb)
+        {"autohide": self.rb_autohide, "always": self.rb_always}.get(
+            self.config.get("visibility_mode", "strip"), self.rb_strip).setChecked(True)
+        lay.addWidget(self.rb_strip)
         lay.addWidget(self.rb_always)
         lay.addWidget(self.rb_autohide)
         self.chk_peek = QCheckBox("   …but peek down for timers, finished builds and alerts")
         self.chk_peek.setChecked(self.config.get("peek_on_activity", True))
         lay.addWidget(self.chk_peek)
-        self.rb_autohide.toggled.connect(self.chk_peek.setEnabled)
-        self.chk_peek.setEnabled(self.rb_autohide.isChecked())
+        self.rb_always.toggled.connect(lambda on: self.chk_peek.setEnabled(not on))
+        self.chk_peek.setEnabled(not self.rb_always.isChecked())
 
         self.chk_fullscreen = QCheckBox("Hide while a full-screen app is open (games, videos, presentations)")
         self.chk_fullscreen.setChecked(self.config.get("hide_in_fullscreen", True))
@@ -558,7 +565,7 @@ class CustomizeDialog(QDialog):
         return w
 
     def show_hotkey_problems(self, problems):
-        self.hk_status.setText(("⚠️ Already used by another app: " + ", ".join(problems)) if problems else "")
+        self.hk_status.setText(("⚠️ Not available:\n" + "\n".join(problems)) if problems else "")
 
     # ----------------------------------------------------- Day, AI & more
     def _build_more_tab(self):
@@ -595,13 +602,13 @@ class CustomizeDialog(QDialog):
         return w
 
     def _reset(self):
-        self._fill_slot_combos(("ai_dot", "clock", "battery_icon"))
+        self._fill_slot_combos(("none", "robo", "none"))
         self.size_combo.setCurrentIndex(self.size_combo.findData("comfortable"))
-        self.width_spin.setValue(200)
+        self.width_spin.setValue(76)
         for i in range(self.tab_list.count()):
             key = self.tab_list.item(i).data(Qt.ItemDataRole.UserRole)
             self._set_tab_checked(key, key in DEFAULT_TABS)
-        self.rb_always.setChecked(True)
+        self.rb_strip.setChecked(True)
         self.rb_island.setChecked(True)
         self.chk_fullscreen.setChecked(True)
         self.chk_through.setChecked(True)
@@ -653,7 +660,8 @@ class CustomizeDialog(QDialog):
         c.set("pill_right", right)
         c.set("compact_width", self.width_spin.value())
         c.set("tabs_visible", tabs)
-        c.set("visibility_mode", "autohide" if self.rb_autohide.isChecked() else "always")
+        c.set("visibility_mode", "autohide" if self.rb_autohide.isChecked()
+              else "always" if self.rb_always.isChecked() else "strip")
         c.set("peek_on_activity", self.chk_peek.isChecked())
         c.set("hide_in_fullscreen", self.chk_fullscreen.isChecked())
         c.set("hide_for_apps", [a.strip().lower() for a in self.hide_apps.text().split(",") if a.strip()])

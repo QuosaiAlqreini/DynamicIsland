@@ -95,6 +95,8 @@ class DaySettings(QDialog):
 
     def __init__(self, theme, parent=None):
         super().__init__(parent)
+        # The island is always-on-top; settings windows must sit above it
+        self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
         self.config = ConfigManager()
         self.setWindowTitle("Day settings")
         self.setStyleSheet(dialog_style(theme))

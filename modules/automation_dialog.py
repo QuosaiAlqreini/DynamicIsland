@@ -44,6 +44,8 @@ class HotkeyEdit(QLineEdit):
 class MacroEditor(QDialog):
     def __init__(self, theme, macro=None, parent=None):
         super().__init__(parent)
+        # The island is always-on-top; settings windows must sit above it
+        self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
         self.setWindowTitle("Edit automation")
         self.setStyleSheet(dialog_style(theme))
         self.setMinimumWidth(460)
@@ -138,6 +140,8 @@ class MacroEditor(QDialog):
 class AutomationDialog(QDialog):
     def __init__(self, theme, automation_service, parent=None):
         super().__init__(parent)
+        # The island is always-on-top; settings windows must sit above it
+        self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
         self.theme = theme
         self.service = automation_service
         self.macros = [dict(m) for m in automation_service.macros]
@@ -228,7 +232,9 @@ class AutomationDialog(QDialog):
             self.macro_table.setItem(r, 3, QTableWidgetItem(desc))
         self.macro_table.blockSignals(False)
         conflicts = len(self.service.status)
-        self.macro_status.setText(f"⚠️ {conflicts} hotkey(s) taken by another app" if conflicts else "")
+        first = next(iter(self.service.status.items()), None)
+        self.macro_status.setText(f"⚠️ {first[0]}: {first[1]}" + (f"  (+{conflicts - 1} more)" if conflicts > 1 else "")
+                                  if first else "")
 
     def _on_macro_item_changed(self, item):
         if item.column() == 0 and 0 <= item.row() < len(self.macros):
@@ -393,6 +399,6 @@ class AutomationDialog(QDialog):
         if self.service.status:
             self._fill_macros()
             QMessageBox.information(self, "Some hotkeys are taken",
-                                    "These hotkeys are already used by Windows or another app:\n\n" +
-                                    "\n".join(f"• {k}" for k in self.service.status))
+                                    "These hotkeys could not be taken:\n\n" +
+                                    "\n".join(f"• {k} — {v}" for k, v in self.service.status.items()))
         self.accept()
