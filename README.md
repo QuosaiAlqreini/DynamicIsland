@@ -46,6 +46,12 @@ Right-click the island (or the tray icon) ➔ **`🎨 Customize Island…`**. A 
   * **Hide at the top:** the island tucks away above the screen and slides down when your cursor touches the top edge near it. Optionally it peeks down for finished timers, builds and alerts. Quick toggle: right-click ➔ `🫥 Hide at Top`.
   * Hover/click-to-open, notch mode and theme are all in one place.
 
+### ⬆️ Updating is now foolproof (1.8.1)
+* **Starting the island again always replaces the copy that is already running**, so you never keep looking at an old version after an update.
+* **Update from inside the app:** ⚙ Settings ➔ *AI, day, update* ➔ **Update & restart** (or tray ➔ *Update & restart*). No terminal needed.
+* The running version is shown in the Settings title, on the Home page's Settings tile, and at the top of the tray menu.
+* **One Settings window** (⚙ in the island toolbar, the tray, or the right-click menu), and it always opens above the island.
+
 ### 🖤 New look & feel (NEW in 1.8)
 * **Rests as a thin strip:** the island sits as a tiny strip on the top edge and opens into the notch when your cursor touches the top (or a timer, alert or your AI needs you). The strip glows orange while your AI works and green when it's done. Choose *strip*, *always visible* or *hide completely* in Settings ➔ Visibility.
 * **Minimal folded notch:** pure black with just Robo; it widens only when there's something to show.

@@ -198,13 +198,14 @@ class CustomizeDialog(QDialog):
         self._live_timer.setInterval(120)
         self._live_timer.timeout.connect(self._apply_live)
 
-        self.setWindowTitle("Customize Dynamic Island")
+        self.setWindowTitle("Dynamic Island Settings")
         self.resize(820, 640)
         self.setStyleSheet(dialog_style(theme))
 
         lay = QVBoxLayout(self)
         head = QHBoxLayout()
-        title = QLabel("🎨 Customize Island")
+        from version import __version__
+        title = QLabel(f"⚙ Settings  ·  Dynamic Island {__version__}")
         title.setStyleSheet(f"font-size: 17px; font-weight: 700; color: {theme['accent']};")
         head.addWidget(title)
         head.addStretch()
@@ -232,7 +233,7 @@ class CustomizeDialog(QDialog):
         self.tabs.addTab(self._build_info_tab(), "ℹ️  My info")
         self.tabs.addTab(self._build_behavior_tab(), "👁️  Visibility")
         self.tabs.addTab(self._build_shortcuts_tab(), "⌨️  Shortcuts")
-        self.tabs.addTab(self._build_more_tab(), "🌙  Day, AI & more")
+        self.tabs.addTab(self._build_more_tab(), "🧩  AI, day, update")
         lay.addWidget(self.tabs, 1)
 
         btns = QHBoxLayout()
@@ -595,6 +596,8 @@ class CustomizeDialog(QDialog):
              lambda: isl.day_widget.open_settings() if isl else None)
         card("🤖 AI accounts", "Connect Gemini, Claude, OpenAI or Ollama for the AI tab and screen help.",
              "Open AI settings…", lambda: isl.open_settings_dialog() if isl else None)
+        card("⬆️ Update", "Get the newest version from GitHub and restart the island. No terminal needed.",
+             "Update && restart", lambda: isl.self_update() if isl else None)
         card("✍️ Text expansion & automations", "Type ;date to get today's date, and make your own "
              "shortcuts that open apps, type text or control windows.", "Open automations…",
              lambda: isl.open_automations() if isl else None)

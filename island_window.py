@@ -1,3 +1,4 @@
+import os
 import sys
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QStackedWidget, QMenu
@@ -96,6 +97,7 @@ CLICK_MOVE_THRESHOLD = 4
 class DynamicIslandWindow(QWidget):
     # title, message -> shown as a Windows toast by the tray icon
     notify = pyqtSignal(str, str)
+    _update_done = pyqtSignal(str, str)
 
     def __init__(self, media_service, sys_service, ai_service, taskbar_service,
                  clipboard_service=None, timer_service=None, build_service=None,
@@ -181,6 +183,7 @@ class DynamicIslandWindow(QWidget):
         # Build UI and position
         self._build_ui()
         self._setup_connections()
+        self._update_done.connect(self._on_update_done)
         self._setup_shortcuts()
         self._sync_window()
         self._body = self._target_rect()
@@ -392,12 +395,76 @@ class DynamicIslandWindow(QWidget):
             "pomodoro": lambda: self.timer_service.start_pomodoro(),
         }
 
-    def open_customize(self):
-        dlg = CustomizeDialog(self.theme, self.info_service, self)
-        self.summoned = True  # keep visible while the dialog is open
-        if dlg.exec():
-            self.apply_customization()
-        self.summoned = False
+    def run_dialog(self, dlg):
+        """Show a settings window above the island (which normally floats over everything)."""
+        hwnd = int(self.winId()) if self.windowHandle() else None
+        was_summoned, self.summoned = self.summoned, True     # keep the island visible meanwhile
+        win_input.set_topmost(hwnd, False)
+        try:
+            dlg.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
+            dlg.show()
+            dlg.raise_()
+            dlg.activateWindow()
+            return dlg.exec()
+        finally:
+            win_input.set_topmost(hwnd, True)
+            self.summoned = was_summoned
+
+    def open_customize(self, page=None):
+        """The one Settings window (look, tabs, info, visibility, shortcuts, and links to the rest)."""
+        if getattr(self, "_settings_open", False):
+            return
+        self._settings_open = True
+        try:
+            dlg = CustomizeDialog(self.theme, self.info_service, self)
+            if isinstance(page, int):
+                dlg.tabs.setCurrentIndex(page)
+            if self.run_dialog(dlg):
+                self.apply_customization()
+        finally:
+            self._settings_open = False
+
+    def self_update(self):
+        """Fetch the newest version from GitHub and restart into it (source installs only)."""
+        import subprocess
+        import threading
+        root = os.path.dirname(os.path.abspath(__file__))
+        if getattr(sys, "frozen", False) or not os.path.isdir(os.path.join(root, ".git")):
+            self.notify.emit("Update", "This copy was not installed with git, so it can't update itself.")
+            return
+        self.idle_pill.flash("⬆ Checking for updates…", self.theme["accent"], 8000)
+        flags = {"creationflags": 0x08000000} if sys.platform == "win32" else {}
+
+        def work():
+            try:
+                before = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root, capture_output=True, text=True, **flags).stdout
+                pull = subprocess.run(["git", "pull", "--ff-only"], cwd=root, capture_output=True, text=True,
+                                      timeout=120, **flags)
+                after = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root, capture_output=True, text=True, **flags).stdout
+                if pull.returncode != 0:
+                    self._update_done.emit("failed", (pull.stderr or pull.stdout).strip()[-200:])
+                elif before == after:
+                    self._update_done.emit("current", "")
+                else:
+                    subprocess.run([sys.executable.replace("pythonw.exe", "python.exe"), "-m", "pip", "install",
+                                    "-q", "-r", "requirements.txt"], cwd=root, capture_output=True, timeout=600, **flags)
+                    self._update_done.emit("updated", "")
+            except Exception as e:
+                self._update_done.emit("failed", str(e)[:200])
+        threading.Thread(target=work, daemon=True).start()
+
+    def _on_update_done(self, result, detail):
+        import subprocess
+        if result == "current":
+            self.idle_pill.flash("✓ You have the newest version", self.theme["success"], 4000)
+        elif result == "failed":
+            self.idle_pill.flash("⚠ Update failed", self.theme["danger"], 5000)
+            self.notify.emit("Update failed", detail or "Could not reach GitHub.")
+        else:
+            self.idle_pill.flash("⬆ Updated. Restarting…", self.theme["success"], 3000)
+            root = os.path.dirname(os.path.abspath(__file__))
+            # The new copy closes this one when it starts
+            subprocess.Popen([sys.executable, os.path.join(root, "app.py")], cwd=root)
 
     def apply_customization(self):
         """Re-read layout / visibility settings and apply them live."""
@@ -444,7 +511,7 @@ class DynamicIslandWindow(QWidget):
 
     def open_automations(self):
         dlg = AutomationDialog(self.theme, self.automation_service, self)
-        dlg.exec()
+        self.run_dialog(dlg)
 
     def open_tab(self, index):
         """Show the island expanded on a given tab (used by menus, tray, hotkey)."""
@@ -896,7 +963,7 @@ class DynamicIslandWindow(QWidget):
 
     def open_settings_dialog(self):
         dlg = SettingsDialog(self.theme, self.ai_service, self.taskbar_service, self)
-        if dlg.exec():
+        if self.run_dialog(dlg):
             # Refresh theme and configuration
             new_theme = self.config.get("theme", "obsidian")
             self.set_theme(new_theme)
@@ -1552,8 +1619,8 @@ class DynamicIslandWindow(QWidget):
         """)
 
         # Settings Dialog Action
-        settings_action = menu.addAction("⚙️ Preferences & AI Accounts")
-        settings_action.triggered.connect(self.open_settings_dialog)
+        settings_action = menu.addAction("⚙ Settings…")
+        settings_action.triggered.connect(self.open_customize)
 
         # MacBook Taskbar Toggle
         is_autohide = self.taskbar_service.is_autohide_enabled()
@@ -1595,7 +1662,6 @@ class DynamicIslandWindow(QWidget):
         if self.timer_service.active:
             focus_menu.addAction("⏹ Stop timer").triggered.connect(self.timer_service.stop)
 
-        menu.addAction("🎨 Customize Island…").triggered.connect(self.open_customize)
         through = menu.addAction("👻 Click-Through Pill (don't block what's under it)")
         through.setCheckable(True)
         through.setChecked(self._through_enabled())

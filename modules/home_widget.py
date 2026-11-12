@@ -112,4 +112,5 @@ class HomeWidget(QWidget):
         now = dt.datetime.now()
         nxt = isl.day_service.next_prayer_text() if isl.day_service.prayer_enabled else f"{now:%a} {now.day} {now:%b}"
         self.tiles["day"].setText(f"🕒  {now:%H:%M}\n      {nxt}")
-        self.tiles["settings"].setText("⚙️  Settings\n      Look & keys")
+        from version import __version__
+        self.tiles["settings"].setText(f"⚙️  Settings\n      v{__version__}")

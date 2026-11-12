@@ -548,7 +548,7 @@ def test_customize_applies_live_and_cancel_undoes(qapp):
     w.show()
     start_w = w.base_compact_w
     d = CustomizeDialog(w.theme, w.info_service, w)
-    assert [d.tabs.nav.item(i).text().split()[-1] for i in range(d.tabs.count())][-1] == "more"
+    assert d.tabs.count() == 6 and "Shortcuts" in d.tabs.nav.item(4).text()
     d.rb_notch.setChecked(True)
     d.size_combo.setCurrentIndex(d.size_combo.findData("roomy"))
     _settle(qapp, 0.8)
@@ -827,3 +827,38 @@ def test_volume_hud_and_dialogs_on_top(qapp):
     d = CustomizeDialog(w.theme, w.info_service, w)
     assert d.windowFlags() & Qt.WindowType.WindowStaysOnTopHint
     d.reject()
+
+
+def test_strip_mode_hides_by_itself_and_comes_back(qapp):
+    """With real timers: the notch shrinks to a strip when left alone, and returns for alerts."""
+    from config import ConfigManager
+    c = ConfigManager()
+    c.set("visibility_mode", "strip")
+    w = _island()
+    w.show()
+    w._apply_visibility_mode()
+    assert w.reveal_timer.isActive()
+    _settle(qapp, 1.8)                                   # cursor is elsewhere: tucks after ~0.7 s
+    assert w.tucked and w.isVisible() and w.body_global().height() <= 6
+    assert w.body_global().y() == w._get_screen_geometry().y()      # sits on the top edge
+    w.idle_pill.flash("⏰ Reminder", None, 1500)          # an alert brings the notch back
+    _settle(qapp, 0.7)
+    assert not w.tucked and w.body_global().height() >= 20
+    _settle(qapp, 2.6)                                   # ...and it tucks away again afterwards
+    assert w.tucked and w.body_global().height() <= 6
+    c.set("visibility_mode", "always")
+
+
+def test_settings_dialog_runs_above_island(qapp, monkeypatch):
+    from PyQt6.QtCore import Qt, QTimer
+    from PyQt6.QtWidgets import QDialog
+    from services import win_input
+    calls = []
+    monkeypatch.setattr(win_input, "set_topmost", lambda hwnd, on: calls.append(on))
+    w = _island()
+    w.show()
+    d = QDialog()
+    QTimer.singleShot(100, d.accept)
+    assert w.run_dialog(d) == 1
+    assert calls == [False, True]                        # island steps down, then returns on top
+    assert d.windowFlags() & Qt.WindowType.WindowStaysOnTopHint

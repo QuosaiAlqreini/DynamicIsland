@@ -28,16 +28,45 @@ def resource_path(*parts):
     return os.path.join(base, *parts)
 
 
-def notify_running_instance():
-    """If Dynamic Island is already running, ask it to show itself. Returns True if so."""
+def replace_running_instance():
+    """Starting the island again always gives you the newest code: any copy that is
+    already running is asked to quit (and force-closed if it is an old version that
+    doesn't understand the request), then this one takes over."""
+    import time
     sock = QLocalSocket()
     sock.connectToServer(SINGLE_INSTANCE_KEY)
     if sock.waitForConnected(300):
-        sock.write(b"show")
+        sock.write(b"quit")
         sock.waitForBytesWritten(300)
         sock.disconnectFromServer()
-        return True
-    return False
+        time.sleep(0.8)
+    # Force-close leftovers: other Python processes running this same app.py
+    try:
+        import psutil
+        me = os.getpid()
+        script = os.path.normcase(os.path.abspath(__file__))
+        victims = []
+        for proc in psutil.process_iter(["pid", "name", "cmdline", "cwd"]):
+            try:
+                if proc.info["pid"] == me or "python" not in (proc.info["name"] or "").lower():
+                    continue
+                cmd = proc.info["cmdline"] or []
+                for arg in cmd[1:]:
+                    path = arg if os.path.isabs(arg) else os.path.join(proc.info["cwd"] or "", arg)
+                    if os.path.normcase(os.path.abspath(path)) == script and "--selftest" not in cmd:
+                        victims.append(proc)
+                        break
+            except (psutil.Error, OSError, TypeError):
+                continue
+        for proc in victims:
+            try:
+                proc.terminate()
+            except psutil.Error:
+                pass
+        if victims:
+            psutil.wait_procs(victims, timeout=3)
+    except Exception as e:
+        print(f"[startup] could not check for older copies: {e}")
 
 def create_tray_icon():
     ico = resource_path("assets", "icon.ico")
@@ -71,8 +100,8 @@ def main():
     app.setWindowIcon(create_tray_icon())
 
     # Only one island at a time (e.g. autostart + double-clicking the shortcut)
-    if not selftest and notify_running_instance():
-        return 0
+    if not selftest:
+        replace_running_instance()
     instance_server = QLocalServer(app)
     QLocalServer.removeServer(SINGLE_INSTANCE_KEY)
     instance_server.listen(SINGLE_INSTANCE_KEY)
@@ -161,8 +190,9 @@ def main():
         "👁️ Show Island" if island.user_hidden else "🙈 Hide Island"))
 
     # Settings & Accounts Action
-    settings_action = tray_menu.addAction("⚙️ Preferences & AI Accounts")
-    settings_action.triggered.connect(island.open_settings_dialog)
+    settings_action = tray_menu.addAction("⚙ Settings…")
+    settings_action.triggered.connect(island.open_customize)
+    tray_menu.addAction("⬆ Update && restart").triggered.connect(island.self_update)
 
     # MacBook Mode (Taskbar Auto-Hide) Action
     def toggle_macbook_mode():
@@ -193,7 +223,6 @@ def main():
     tray_menu.addAction("📝 Quick Note").triggered.connect(island.quick_note)
     tray_menu.addAction("✅ Add Task / Reminder").triggered.connect(lambda: island.open_tab_by_key("tasks"))
     tray_menu.addAction("🔎 Command Bar").triggered.connect(island.toggle_command_bar)
-    tray_menu.addAction("🎨 Customize Island…").triggered.connect(island.open_customize)
     tray_menu.addAction("👻 Click-Through Pill on / off").triggered.connect(lambda: island.toggle_through_mode())
     tray_menu.addAction("⌨️ Automations & Hotkeys…").triggered.connect(island.open_automations)
 
@@ -226,7 +255,7 @@ def main():
         QTimer.singleShot(1500, lambda: tray_icon.showMessage(
             "⚠️ Shortcut already taken",
             "Another program uses:\n" + "\n".join(hotkey_problems[:4]) +
-            "\nPick a different one in Preferences or ⌨️ Keys → Edit.",
+            "\nPick a different one in ⚙ Settings → Shortcuts.",
             QSystemTrayIcon.MessageIcon.Warning, 10000))
 
     # Local listener for Claude Code / Codex (only on this PC)
@@ -242,7 +271,8 @@ def main():
     def on_second_instance():
         conn = instance_server.nextPendingConnection()
         if conn is not None:
-            conn.readyRead.connect(lambda: (conn.readAll(), island.summon()))
+            conn.readyRead.connect(lambda: app.quit() if b"quit" in bytes(conn.readAll())
+                                   else island.summon())
             conn.disconnected.connect(conn.deleteLater)
     instance_server.newConnection.connect(on_second_instance)
 

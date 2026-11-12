@@ -12,7 +12,7 @@ if errorlevel 1 (
 )
 
 echo Updating to the latest version (skipped if this is not a git copy)...
-git pull --ff-only 2>nul
+git fetch origin claude/charming-sagan-bs9iu8 2>nul && git reset --hard FETCH_HEAD 2>nul
 
 echo Checking dependencies...
 python -m pip install -r requirements.txt --quiet --disable-pip-version-check

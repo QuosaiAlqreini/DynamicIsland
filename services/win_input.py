@@ -480,3 +480,14 @@ def window_at(x, y):
         return window_title(hwnd), (r.left, r.top, r.right, r.bottom)
     except Exception:
         return None
+
+
+def set_topmost(hwnd, on):
+    """Put a window in (or take it out of) the always-on-top layer without moving or focusing it."""
+    if not IS_WINDOWS or not hwnd:
+        return False
+    try:
+        return bool(user32.SetWindowPos(hwnd, HWND_TOPMOST if on else HWND_NOTOPMOST, 0, 0, 0, 0,
+                                        SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE))
+    except Exception:
+        return False

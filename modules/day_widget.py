@@ -416,7 +416,9 @@ class DayWidget(QWidget):
         self.refresh()
 
     def open_settings(self):
-        if DaySettings(self.theme, self.window()).exec():
+        dlg = DaySettings(self.theme, self.window())
+        runner = getattr(self.window(), "run_dialog", None)
+        if (runner(dlg) if runner else dlg.exec()):
             self.day.tick()
 
     def refresh(self):
