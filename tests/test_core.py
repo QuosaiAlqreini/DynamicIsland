@@ -908,3 +908,20 @@ def test_glass_painting(qapp):
     from services.glass import frosted as blur_fn
     assert blur_fn(pm).size() == pm.size()
     c.set("glass_material", "frosted")
+
+
+def test_rapid_open_close_is_safe(qapp):
+    """Opening and closing quickly, many times, must not crash or leave content hidden."""
+    w = _island()
+    w.show()
+    w.summoned = True
+    for _ in range(6):
+        w.expand()
+        _settle(qapp, 0.05)
+        w.collapse()
+        _settle(qapp, 0.03)
+    w.summoned = True
+    w.expand()
+    _settle(qapp, 0.9)
+    eff = w.expanded_container.graphicsEffect()
+    assert eff is None or not eff.isEnabled() or eff.opacity() == 1.0   # content fully visible

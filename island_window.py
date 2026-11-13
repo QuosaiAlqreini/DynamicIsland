@@ -647,7 +647,7 @@ class DynamicIslandWindow(QWidget):
         self._volume_seen = None
         self._volume_hud_timer = QTimer(self)
         self._volume_hud_timer.setSingleShot(True)
-        self._volume_hud_timer.timeout.connect(lambda: self.idle_pill.clear_activity("volume"))
+        self._volume_hud_timer.timeout.connect(self._clear_level_hud)
         self.volume_service.refresh()
 
         # AI agents (Claude Code / Codex)
@@ -774,6 +774,9 @@ class DynamicIslandWindow(QWidget):
         self._volume_hud_timer.start(1600)
         if self.tucked and not self.user_hidden and not self.fullscreen_hidden:
             self._reveal()
+
+    def _clear_level_hud(self):
+        self.idle_pill.clear_activity("volume")
 
     def _on_brightness_hud(self, level):
         if self._brightness_seen is None:           # first reading at startup: no popup
@@ -1212,20 +1215,33 @@ class DynamicIslandWindow(QWidget):
     # ------------------------------------------------ shape morph (smooth)
     # ------------------------------------------------ shape morph (smooth)
     def _fade_in_content(self):
-        """Panel content fades in while the island grows (instead of popping in)."""
-        from PyQt6.QtWidgets import QGraphicsOpacityEffect
-        effect = QGraphicsOpacityEffect(self.expanded_container)
-        effect.setOpacity(0.0)
-        self.expanded_container.setGraphicsEffect(effect)
-        fade = QPropertyAnimation(effect, b"opacity", self)
-        fade.setStartValue(0.0)
-        fade.setEndValue(1.0)
-        fade.setDuration(260)
-        fade.setEasingCurve(QEasingCurve.Type.OutCubic)
-        # Remove the effect afterwards: it costs a little on every repaint
-        fade.finished.connect(lambda: self.expanded_container.setGraphicsEffect(None))
-        QTimer.singleShot(90, fade.start)
-        self._content_fade = fade
+        """Panel content fades in while the island grows (instead of popping in).
+
+        One effect and one animation are created once and reused; the effect is
+        only switched off afterwards (never deleted while something animates it)."""
+        if getattr(self, "_content_effect", None) is None:
+            from PyQt6.QtWidgets import QGraphicsOpacityEffect
+            self._content_effect = QGraphicsOpacityEffect(self.expanded_container)
+            self.expanded_container.setGraphicsEffect(self._content_effect)
+            self._content_fade = QPropertyAnimation(self._content_effect, b"opacity", self)
+            self._content_fade.setStartValue(0.0)
+            self._content_fade.setEndValue(1.0)
+            self._content_fade.setDuration(260)
+            self._content_fade.setEasingCurve(QEasingCurve.Type.OutCubic)
+            self._content_fade.finished.connect(self._content_fade_done)
+            self._content_delay = QTimer(self)
+            self._content_delay.setSingleShot(True)
+            self._content_delay.setInterval(90)
+            self._content_delay.timeout.connect(self._content_fade.start)
+        self._content_fade.stop()
+        self._content_effect.setOpacity(0.0)
+        self._content_effect.setEnabled(True)
+        self._content_delay.start()
+
+    def _content_fade_done(self):
+        # Switched off (not deleted): a disabled effect costs nothing when painting
+        self._content_effect.setOpacity(1.0)
+        self._content_effect.setEnabled(False)
 
     def _morph_to(self, target, duration=260, on_done=None, spring=False):
         """Animate the painted body. The real window never moves or resizes."""
