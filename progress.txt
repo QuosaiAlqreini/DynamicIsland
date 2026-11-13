@@ -114,3 +114,12 @@ Started: 2026-10-31 16:50
   - Programmatic expand() in tests needs summoned=True or the through-mode tick closes it.
 - **Not verified on real Windows:** mask behaviour with click-through off, volume control with a real audio device.
 ---
+
+## 2026-11-13 - US-026 (glass & soft look, v1.9.0)
+- **Implemented:** services/glass.py (materials, frosted backdrop via WDA_EXCLUDEFROMCAPTURE + grabWindow + scale blur, paint_glass), glass/glass_light themes (8-digit #AARRGGBB QSS colours), spring expand + content fade, album art + waveform + album glow, brightness HUD (WMI), immediate removal of rebuilt widgets.
+- **Learnings:**
+  - QCoreApplication.processEvents() does not run deferred deletes: rebuilt widgets must be hidden + unparented immediately or they can show at 640x480.
+  - Never name a scratch script after a stdlib module (bisect.py shadowed random's import).
+  - Light glass needs a light theme with dark text; switch theme automatically with the material.
+- **Not verified on real Windows:** blur capture exclusion, WinRT thumbnail bytes, WMI brightness.
+---

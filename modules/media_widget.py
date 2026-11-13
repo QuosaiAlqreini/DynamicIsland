@@ -196,6 +196,27 @@ class MediaWidget(QWidget):
             self.visualizer_phase = (self.visualizer_phase + 0.3) % (2 * math.pi)
             self.update()
 
+    def set_album_art(self, pixmap):
+        from PyQt6.QtGui import QPainter, QPainterPath, QPixmap
+        from PyQt6.QtCore import QRectF
+        if pixmap is None or pixmap.isNull():
+            self.art_box.setPixmap(QPixmap())
+            self.art_box.setText("💿")
+            return
+        size = self.art_box.width()
+        rounded = QPixmap(size, size)
+        rounded.fill(Qt.GlobalColor.transparent)
+        p = QPainter(rounded)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        path = QPainterPath()
+        path.addRoundedRect(QRectF(0, 0, size, size), 12, 12)
+        p.setClipPath(path)
+        p.drawPixmap(0, 0, pixmap.scaled(size, size, Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                                          Qt.TransformationMode.SmoothTransformation))
+        p.end()
+        self.art_box.setText("")
+        self.art_box.setPixmap(rounded)
+
     def set_lyric(self, line):
         self.lyric_label.setText(("♪ " + line[:58]) if line else "")
 

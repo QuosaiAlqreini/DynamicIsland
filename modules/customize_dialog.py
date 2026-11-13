@@ -177,7 +177,8 @@ class SidebarPages(QWidget):
 LIVE_KEYS = ["pill_left", "pill_center", "pill_right", "compact_width", "island_size", "tabs_visible",
              "visibility_mode", "peek_on_activity", "hide_in_fullscreen", "hide_for_apps", "lyrics_enabled",
              "through_mode", "through_open", "island_offset_x", "expand_on_hover", "click_to_expand",
-             "notch_mode", "theme", "global_hotkey", "command_bar_hotkey", "push_windows_down"]
+             "notch_mode", "theme", "global_hotkey", "command_bar_hotkey", "push_windows_down",
+             "glass_material", "glass_blur", "music_in_notch"]
 
 
 class CustomizeDialog(QDialog):
@@ -274,6 +275,18 @@ class CustomizeDialog(QDialog):
             self.size_combo.addItem(label, key)
         self.size_combo.setCurrentIndex(max(0, self.size_combo.findData(self.config.get("island_size", "comfortable"))))
         form.addRow("<b>Size</b>", self.size_combo)
+        from services.glass import MATERIALS
+        self.material_combo = QComboBox()
+        for key, spec in MATERIALS.items():
+            self.material_combo.addItem(spec[0], key)
+        self.material_combo.setCurrentIndex(max(0, self.material_combo.findData(self.config.get("glass_material", "frosted"))))
+        form.addRow("<b>Glass</b>", self.material_combo)
+        self.chk_blur = QCheckBox("Frosted blur of what's behind (the island is then left out of screenshots)")
+        self.chk_blur.setChecked(bool(self.config.get("glass_blur", True)))
+        form.addRow("", self.chk_blur)
+        self.chk_music = QCheckBox("While music plays, show the album cover and a waveform beside the notch")
+        self.chk_music.setChecked(bool(self.config.get("music_in_notch", True)))
+        form.addRow("", self.chk_music)
         self.chk_reserve = QCheckBox("Push windows down below it (off by default: this takes a strip "
                                      "of screen space away from every app)")
         self.chk_reserve.setChecked(bool(self.config.get("push_windows_down", False)))
@@ -677,6 +690,9 @@ class CustomizeDialog(QDialog):
         c.set("notch_mode", self.rb_notch.isChecked())
         c.set("theme", self.theme_combo.currentData())
         c.set("island_size", self.size_combo.currentData())
+        c.set("glass_material", self.material_combo.currentData())
+        c.set("glass_blur", self.chk_blur.isChecked())
+        c.set("music_in_notch", self.chk_music.isChecked())
         c.set("push_windows_down", self.chk_reserve.isChecked())
         for key, edit in (("global_hotkey", self.hk_open), ("command_bar_hotkey", self.hk_bar)):
             text = edit.text().strip()

@@ -410,8 +410,13 @@ class AutomationService(QObject):
             return win_input.tap_vk(_SIMPLE_VK[action])
         if action in ("bright_up", "bright_down"):
             step = int(arg) if arg.isdigit() else 10
-            self.feedback.emit("☀️ Brighter" if action == "bright_up" else "🌙 Dimmer")
-            return win_input.change_brightness(step if action == "bright_up" else -step)
+            ok = win_input.change_brightness(step if action == "bright_up" else -step)
+            watcher = getattr(self.island_actions.get("brightness_service", lambda: None)(), "check_soon", None)
+            if watcher:
+                watcher()
+            else:
+                self.feedback.emit("☀️ Brighter" if action == "bright_up" else "🌙 Dimmer")
+            return ok
         if action == "keep_awake":
             self.set_keep_awake(not self.keep_awake)
             return True

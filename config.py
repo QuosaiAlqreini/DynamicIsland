@@ -6,7 +6,10 @@ CONFIG_DIR = Path.home() / ".dynamic_island"
 CONFIG_FILE = CONFIG_DIR / "config.json"
 
 DEFAULT_CONFIG = {
-    "theme": "midnight",
+    "theme": "glass",
+    "glass_material": "frosted",       # frosted | smoke | clear | milk | tinted | solid
+    "glass_blur": True,                # blur what is behind the island (Windows 10 2004+)
+    "music_in_notch": True,            # album art + waveform beside the notch while music plays
     "expand_on_hover": True,
     "hover_delay_ms": 120,
     "collapse_delay_ms": 300,

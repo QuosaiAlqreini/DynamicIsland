@@ -1,4 +1,40 @@
 THEMES = {
+    "glass_light": {
+        "name": "Glass, light (dark text)",
+        "glass": True,
+        "bg_color": "#f3f5f9",
+        "bg_secondary": "#12000000",
+        "border_color": "#22000000",
+        "text_primary": "#1d2230",
+        "text_secondary": "#566070",
+        "accent": "#3b6fd8",
+        "accent_secondary": "#7a55d6",
+        "accent_glow": "rgba(59, 111, 216, 0.25)",
+        "danger": "#d14d4d",
+        "warning": "#c27c0e",
+        "success": "#1f9d63",
+        "pill_gradient_start": "#f2f4f8",
+        "pill_gradient_end": "#eceff4",
+        "card_bg": "#40FFFFFF"
+    },
+    "glass": {
+        "name": "Glass (soft, default)",
+        "glass": True,
+        "bg_color": "#16181d",
+        "bg_secondary": "#0FFFFFFF",
+        "border_color": "#1FFFFFFF",
+        "text_primary": "#eef0f4",
+        "text_secondary": "#9aa3b2",
+        "accent": "#8ab4ff",
+        "accent_secondary": "#c4a7ff",
+        "accent_glow": "rgba(138, 180, 255, 0.30)",
+        "danger": "#f59a9a",
+        "warning": "#f5c97a",
+        "success": "#7ee2a8",
+        "pill_gradient_start": "#1b1e25",
+        "pill_gradient_end": "#16181d",
+        "card_bg": "#12FFFFFF"
+    },
     "midnight": {
         "name": "Midnight (pure black)",
         "bg_color": "#000000",
@@ -103,13 +139,15 @@ THEMES = {
     }
 }
 
-def get_theme(theme_name="obsidian"):
-    return THEMES.get(theme_name, THEMES["obsidian"])
+def get_theme(theme_name="glass"):
+    return THEMES.get(theme_name, THEMES["glass"])
 
 
 def _rgba(hex_color, alpha):
     """Convert '#rrggbb' into a CSS rgba() string with the given alpha (0-1)."""
     h = hex_color.lstrip("#")
+    if len(h) == 8:
+        h = h[2:]
     if len(h) != 6:
         return hex_color
     r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)

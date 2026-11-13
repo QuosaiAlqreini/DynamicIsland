@@ -100,7 +100,10 @@ class KeysWidget(QWidget):
         while self.grid.count():
             item = self.grid.takeAt(0)
             if item.widget():
-                item.widget().deleteLater()
+                _old = item.widget()
+                _old.hide()            # gone right away, not only at the next event-loop turn
+                _old.setParent(None)
+                _old.deleteLater()
         css = self._macro_button_css()
         macros = [m for m in self.service.macros if m.get("enabled", True)]
         for i, macro in enumerate(macros):

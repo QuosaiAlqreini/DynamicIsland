@@ -46,6 +46,13 @@ Right-click the island (or the tray icon) ➔ **`🎨 Customize Island…`**. A 
   * **Hide at the top:** the island tucks away above the screen and slides down when your cursor touches the top edge near it. Optionally it peeks down for finished timers, builds and alerts. Quick toggle: right-click ➔ `🫥 Hide at Top`.
   * Hover/click-to-open, notch mode and theme are all in one place.
 
+### 🫧 Glass, soft motion & music (NEW in 1.9)
+* **Real glass:** the island is a translucent pane with a **frosted blur of whatever is behind it**, a thin light rim, a soft sheen and a soft shadow. Pastel colours that are easy on the eyes. Pick a material in ⚙ Settings ➔ Look & pill ➔ **Glass**: *Frosted* (default), *Smoked*, *Clear*, *Milk* (light, with dark text), *Tinted* or *Solid*.
+  * The blur works by leaving the island out of screen captures (Windows 10 2004 or newer), so **the island doesn't appear in your screenshots or screen recordings**. Turn the blur off in the same place if you'd rather have the island in screenshots.
+* **Soft motion:** the island opens with a gentle spring and lands softly when it closes; the contents fade in instead of popping.
+* **Music beside the notch** (like NotchNook / MediaMate): while music plays, the folded island shows the **album cover** on one side and a **live waveform** on the other, and glows softly in the cover's colour. The Media tab shows the real cover too.
+* **Volume and brightness popups** (like DynamicNotch): change either one (keyboard keys, Windows, or the island) and the level slides into the notch with a bar. Brightness works on laptop screens.
+
 ### ⬆️ Updating is now foolproof (1.8.1)
 * **Starting the island again always replaces the copy that is already running**, so you never keep looking at an old version after an update.
 * **Update from inside the app:** ⚙ Settings ➔ *AI, day, update* ➔ **Update & restart** (or tray ➔ *Update & restart*). No terminal needed.

@@ -156,7 +156,10 @@ class QuickToolsWidget(QWidget):
         while self.launcher_row.count():
             item = self.launcher_row.takeAt(0)
             if item.widget():
-                item.widget().deleteLater()
+                _old = item.widget()
+                _old.hide()            # gone right away, not only at the next event-loop turn
+                _old.setParent(None)
+                _old.deleteLater()
         self.launcher_buttons = []
         css = small_button_style(self.theme)
         pin_label = QLabel("📌")

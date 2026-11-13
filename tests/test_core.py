@@ -862,3 +862,49 @@ def test_settings_dialog_runs_above_island(qapp, monkeypatch):
     assert w.run_dialog(d) == 1
     assert calls == [False, True]                        # island steps down, then returns on top
     assert d.windowFlags() & Qt.WindowType.WindowStaysOnTopHint
+
+
+def test_rebuilding_tabs_leaves_no_stray_buttons(qapp):
+    """Old tab buttons must disappear immediately, not linger until the next event-loop turn."""
+    from PyQt6.QtWidgets import QPushButton
+    w = _island()
+    w.show()
+    for _ in range(3):
+        w.apply_customization()          # rebuilds the tab bar
+    w.summoned = True
+    w.expand()
+    _settle(qapp, 0.8)
+    visible = [b for b in w.expanded_container.findChildren(QPushButton) if b.isVisible()]
+    assert all(b.width() < 300 for b in visible), [(b.text(), b.width()) for b in visible if b.width() >= 300]
+    nav = [b for b in visible if b.parentWidget() is w.expanded_container]
+    assert len(nav) <= len(w.nav_order) + 6        # tab buttons + toolbar, no leftovers
+    c = w._body.center()
+    assert w.childAt(int(c.x()), int(c.y())) is not None
+    assert not isinstance(w.childAt(int(c.x()), int(c.y())), QPushButton) or w.childAt(int(c.x()), int(c.y())).width() < 300
+
+
+def test_glass_painting(qapp):
+    """Glass body is translucent over what is behind it, with a frosted backdrop when available."""
+    from PyQt6.QtGui import QPixmap, QColor
+    from config import ConfigManager
+    c = ConfigManager()
+    c.set("theme", "glass")
+    c.set("glass_material", "clear")
+    c.set("visibility_mode", "always")
+    w = _island()
+    w.show()
+    w.apply_customization()
+    _settle(qapp, 0.6)
+    b = w._body.toRect()
+    plain = w.grab().toImage().pixelColor(b.center().x(), b.bottom() - 3)
+    assert plain.alpha() < 255                                  # see-through without a backdrop
+    pm = QPixmap(b.width() + 4, b.height() + 4)
+    pm.fill(QColor("#ff0000"))
+    w._blur_pixmap, w._blur_ok = pm, True
+    w.update()
+    _settle(qapp, 0.2)
+    frosted = w.grab().toImage().pixelColor(b.center().x(), b.bottom() - 3)
+    assert frosted.red() > frosted.blue() + 20                  # the backdrop shows through the tint
+    from services.glass import frosted as blur_fn
+    assert blur_fn(pm).size() == pm.size()
+    c.set("glass_material", "frosted")

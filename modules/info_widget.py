@@ -56,7 +56,10 @@ class InfoWidget(QWidget):
         while self.grid.count():
             it = self.grid.takeAt(0)
             if it.widget():
-                it.widget().deleteLater()
+                _old = it.widget()
+                _old.hide()            # gone right away, not only at the next event-loop turn
+                _old.setParent(None)
+                _old.deleteLater()
         self.cards = {}
         t = self.theme
         if not items:

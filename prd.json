@@ -366,6 +366,22 @@
       "priority": 25,
       "passes": true,
       "notes": "island_window body/_morph_to/_target_rect; services/hotkey_owner.py; modules/home_widget.py"
+    },
+    {
+      "id": "US-026",
+      "title": "Glass materials with frosted backdrop, soft motion, music in notch, brightness HUD",
+      "description": "Smooth, soft, glass look and features from NotchNook/MediaMate (art + waveform), DynamicNotch (HUDs), Custom Notch (styles).",
+      "acceptanceCriteria": [
+        "Glass painting: frosted backdrop (capture-excluded grab + downscale blur), tint gradient, sheen, rim, soft shadow, status/album glow",
+        "Materials: frosted, smoke, clear, milk (auto light theme), tinted, solid",
+        "Expand with soft spring + content fade-in; collapse OutQuint",
+        "Album cover via WinRT thumbnail, shown in pill (with waveform) and Media tab; album colour glow",
+        "Brightness watched via WMI; HUD like volume",
+        "Stray widgets removed immediately on rebuild"
+      ],
+      "priority": 26,
+      "passes": true,
+      "notes": "services/glass.py, services/brightness_service.py; blur and thumbnail not verifiable off Windows"
     }
   ]
 }

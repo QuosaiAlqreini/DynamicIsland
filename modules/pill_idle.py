@@ -30,6 +30,8 @@ class IdlePillWidget(QWidget):
         self.pulse_phase = 0.0
         self.wave_phase = 0.0
         self.robo_mood = "idle"
+        self.album_art = None
+        self.music_enabled = True
         self._t0 = time.monotonic()
 
         # Live activities (timer, builds, ...) shown instead of the center item.
@@ -71,6 +73,14 @@ class IdlePillWidget(QWidget):
             self.wave_phase = (self.wave_phase + 0.25) % (2 * math.pi)
         if "ai_dot" in self.slots or "robo" in self.slots or self.is_playing:
             self.update()
+
+    def set_album_art(self, pixmap):
+        self.album_art = pixmap
+        self.update()
+
+    def music_mode(self):
+        """Music playing and nothing more important to show: art + waveform beside the notch."""
+        return self.music_enabled and self.is_playing and not self.current_activity()
 
     def set_robo_mood(self, mood):
         self.robo_mood = mood
@@ -163,6 +173,9 @@ class IdlePillWidget(QWidget):
         w, h = self.width(), self.height()
         painter.setFont(QFont("Segoe UI", 10, QFont.Weight.DemiBold))
         left_slot, center_slot, right_slot = self.slots
+        if self.music_mode():
+            self._paint_music(painter, w, h, center_slot)
+            return
         if self.current_activity() and center_slot == "robo" and right_slot in ("none", ""):
             right_slot = "robo"          # make room for the text, keep Robo in view
 
@@ -265,6 +278,41 @@ class IdlePillWidget(QWidget):
         pen.setColor(color)
         painter.setPen(pen)
         painter.drawArc(x + 1, y, 16, 16, 90 * 16, -int(max(0.0, min(1.0, frac)) * 360 * 16))
+
+    def _paint_music(self, painter, w, h, center_slot):
+        """NotchNook-style: album cover on the left, live waveform on the right."""
+        from PyQt6.QtCore import QRectF
+        from PyQt6.QtGui import QPainterPath
+        size = max(12, min(h - 6, 22))
+        y = (h - size) / 2
+        art_rect = QRectF(4, y, size, size)
+        clip = QPainterPath()
+        clip.addRoundedRect(art_rect, size * 0.28, size * 0.28)
+        painter.save()
+        painter.setClipPath(clip)
+        if self.album_art is not None and not self.album_art.isNull():
+            painter.drawPixmap(art_rect.toRect(), self.album_art)
+        else:
+            painter.fillPath(clip, QBrush(QColor(self.theme["accent"])))
+            painter.setPen(QColor(self.theme["bg_color"]))
+            painter.drawText(art_rect, Qt.AlignmentFlag.AlignCenter, "♪")
+        painter.restore()
+        # Waveform: soft rounded bars with a gentle, uneven rhythm
+        bars, bw, gap = 5, 3, 2.5
+        total = bars * bw + (bars - 1) * gap
+        x0 = w - 6 - total
+        color = QColor(self.theme["accent"])
+        painter.setPen(Qt.PenStyle.NoPen)
+        for i in range(bars):
+            amp = 0.35 + 0.65 * abs(math.sin(self.wave_phase * (0.9 + i * 0.17) + i * 1.3))
+            bh = max(3.0, (h - 12) * amp)
+            c = QColor(color)
+            c.setAlphaF(0.55 + 0.45 * amp)
+            painter.setBrush(QBrush(c))
+            painter.drawRoundedRect(QRectF(x0 + i * (bw + gap), (h - bh) / 2, bw, bh), bw / 2, bw / 2)
+        # Robo stays in the middle if he is the centre item
+        if center_slot == "robo":
+            self._paint_slot(painter, "robo", int(w / 2 - 11), 22, h, Qt.AlignmentFlag.AlignCenter)
 
     def _paint_ai_dot(self, painter, x, h):
         painter.setPen(Qt.PenStyle.NoPen)

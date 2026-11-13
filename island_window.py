@@ -8,7 +8,8 @@ from PyQt6.QtCore import (
     QParallelAnimationGroup, QVariantAnimation, QRectF
 )
 from PyQt6.QtGui import (
-    QPainter, QColor, QPen, QBrush, QLinearGradient, QCursor, QKeySequence, QShortcut, QRegion
+    QPainter, QColor, QPen, QBrush, QLinearGradient, QCursor, QKeySequence, QShortcut, QRegion,
+    QPainterPath
 )
 from PyQt6.QtWidgets import QApplication, QLineEdit, QPlainTextEdit, QTextEdit
 
@@ -130,6 +131,7 @@ class DynamicIslandWindow(QWidget):
         self._robo_capture = None
         self._migrate_new_defaults()
         self._migrate_look()
+        self._migrate_glass()
 
         # State tracking
         self.is_expanded = False
@@ -189,6 +191,7 @@ class DynamicIslandWindow(QWidget):
         self._body = self._target_rect()
         self._layout_children()
         self._setup_visibility()
+        self._setup_glass()
         if self.config.get("remember_last_tab", True):
             last = self.config.get("last_tab", 0)
             if isinstance(last, int) and 0 <= last < self.stack.count():
@@ -205,6 +208,7 @@ class DynamicIslandWindow(QWidget):
 
         # 1. Idle Pill Widget (Visible when collapsed)
         self.idle_pill = IdlePillWidget(self.theme, self, info_service=self.info_service)
+        self.idle_pill.music_enabled = bool(self.config.get("music_in_notch", True))
         self.idle_pill.set_slots(self.config.get("pill_left", "ai_dot"),
                                  self.config.get("pill_center", "clock"),
                                  self.config.get("pill_right", "battery_icon"))
@@ -338,7 +342,10 @@ class DynamicIslandWindow(QWidget):
         while self.nav_row.count():
             item = self.nav_row.takeAt(0)
             if item.widget():
-                item.widget().deleteLater()
+                _old = item.widget()
+                _old.hide()            # gone right away, not only at the next event-loop turn
+                _old.setParent(None)
+                _old.deleteLater()
         keys = [k for k in self.config.get("tabs_visible", DEFAULT_TABS) if k in TAB_REGISTRY]
         keys = keys or list(DEFAULT_TABS)
         icon_only = self._nav_icon_only = len(keys) > MAX_LABELED_TABS
@@ -387,6 +394,7 @@ class DynamicIslandWindow(QWidget):
             "collapse": self.collapse,
             "through_toggle": self.toggle_through_mode,
             "island_visibility": self.toggle_visibility,
+            "brightness_service": lambda: getattr(self, "brightness_service", None),
             "style_toggle": lambda: self.set_style(not self.notch_mode),
             "command_bar": self.toggle_command_bar,
             "add_task": lambda phrase="": (self.tasks_service.add(phrase) if phrase.strip()
@@ -472,10 +480,24 @@ class DynamicIslandWindow(QWidget):
                                  self.config.get("pill_center", "robo"),
                                  self.config.get("pill_right", "none"))
         self.notch_mode = self.config.get("notch_mode", False)
+        self.idle_pill.music_enabled = bool(self.config.get("music_in_notch", True))
+        if getattr(self, "_blur_ok", False):
+            if self.config.get("glass_blur", True):
+                self._blur_timer.start()
+            else:
+                self._blur_timer.stop()
         self._apply_size_profile()
         self.compact_w = self.base_compact_w + self._activity_extra()
         self._rebuild_nav()
         theme = self.config.get("theme", self.theme_name)
+        # Milk glass is light: it needs dark text, and the other glasses need light text
+        material = self.config.get("glass_material", "frosted")
+        if theme == "glass" and material == "milk":
+            theme = "glass_light"
+        elif theme == "glass_light" and material != "milk":
+            theme = "glass"
+        if theme != self.config.get("theme"):
+            self.config.set("theme", theme)
         if theme != self.theme_name:
             self.set_theme(theme)
         self._apply_visibility_mode()
@@ -606,6 +628,10 @@ class DynamicIslandWindow(QWidget):
 
         # Lyrics + real volume
         self.media_service.media_updated.connect(self.lyrics_service.update_media)
+        self.media_service.art_changed.connect(self.idle_pill.set_album_art)
+        self.media_service.art_changed.connect(self.media_widget.set_album_art)
+        self.media_service.art_changed.connect(self._on_album_art)
+        self.media_service.media_updated.connect(self._on_media_for_width)
         self.lyrics_service.line_changed.connect(self.media_widget.set_lyric)
         self.lyrics_service.line_changed.connect(lambda _l: self.idle_pill.update())
         self.volume_service.volume_changed.connect(self.media_widget.set_volume)
@@ -614,6 +640,10 @@ class DynamicIslandWindow(QWidget):
         self.media_widget.mute_clicked.connect(self.volume_service.toggle_mute)
         self.tools_widget.volume_changed.connect(self.volume_service.set_percent)
         self.volume_service.volume_changed.connect(self._on_volume_hud)
+        from services.brightness_service import BrightnessService
+        self.brightness_service = BrightnessService(self)
+        self.brightness_service.brightness_changed.connect(self._on_brightness_hud)
+        self._brightness_seen = None
         self._volume_seen = None
         self._volume_hud_timer = QTimer(self)
         self._volume_hud_timer.setSingleShot(True)
@@ -653,6 +683,9 @@ class DynamicIslandWindow(QWidget):
     # ------------------------------------------------------ Live activities
     def _on_pill_activity(self, active):
         """Grow the pill while a live activity (timer, build, toast) is shown."""
+        self._refresh_compact_width()
+
+    def _on_media_for_width(self, _media=None):
         self._refresh_compact_width()
 
     def _refresh_compact_width(self):
@@ -705,6 +738,14 @@ class DynamicIslandWindow(QWidget):
             self.config.set("pill_left", "robo")
         self.config.set("agents_migrated", True)
 
+    def _migrate_glass(self):
+        if self.config.get("look_v3_migrated", False):
+            return
+        self.config.set("theme", "glass")
+        self.config.set("look_v3_migrated", True)
+        self.theme_name = "glass"
+        self.theme = get_theme("glass")
+
     def _migrate_look(self):
         """One-time switch to the minimal black look (everything can be changed back in Settings)."""
         if self.config.get("look_v2_migrated", False):
@@ -730,6 +771,18 @@ class DynamicIslandWindow(QWidget):
         icon = "🔇" if muted or percent == 0 else "🔉" if percent < 50 else "🔊"
         self.idle_pill.set_activity("volume", f"{icon} {'Muted' if muted else str(percent) + '%'}",
                                     0.0 if muted else percent / 100, self.theme["accent"], priority=60)
+        self._volume_hud_timer.start(1600)
+        if self.tucked and not self.user_hidden and not self.fullscreen_hidden:
+            self._reveal()
+
+    def _on_brightness_hud(self, level):
+        if self._brightness_seen is None:           # first reading at startup: no popup
+            self._brightness_seen = level
+            return
+        if level == self._brightness_seen:
+            return
+        self._brightness_seen = level
+        self.idle_pill.set_activity("volume", f"☀ {level}%", level / 100, self.theme["warning"], priority=60)
         self._volume_hud_timer.start(1600)
         if self.tucked and not self.user_hidden and not self.fullscreen_hidden:
             self._reveal()
@@ -1024,6 +1077,8 @@ class DynamicIslandWindow(QWidget):
         """Extra pill width needed to show the current live activity text."""
         act = self.idle_pill.current_activity()
         if not act:
+            if self.idle_pill.music_mode():
+                return max(0, 150 - self.base_compact_w)
             return 0
         from PyQt6.QtGui import QFontMetrics, QFont
         text_w = QFontMetrics(QFont("Segoe UI", 10, QFont.Weight.DemiBold)).horizontalAdvance(act["text"])
@@ -1137,7 +1192,8 @@ class DynamicIslandWindow(QWidget):
         self.idle_pill.hide()
         self.prompt_bar.hide()
         self.expanded_container.show()
-        self._morph_to(self._expanded_rect(), 340, None)
+        self._fade_in_content()
+        self._morph_to(self._expanded_rect(), 420, None, spring=True)
 
     def collapse(self):
         if not self.is_expanded:
@@ -1149,13 +1205,29 @@ class DynamicIslandWindow(QWidget):
         self.expanded_container.hide()
         self._sync_prompt_state()
         self._update_passthrough()
-        self._settle(280)
+        self._settle(320)
 
 
 
     # ------------------------------------------------ shape morph (smooth)
     # ------------------------------------------------ shape morph (smooth)
-    def _morph_to(self, target, duration=260, on_done=None):
+    def _fade_in_content(self):
+        """Panel content fades in while the island grows (instead of popping in)."""
+        from PyQt6.QtWidgets import QGraphicsOpacityEffect
+        effect = QGraphicsOpacityEffect(self.expanded_container)
+        effect.setOpacity(0.0)
+        self.expanded_container.setGraphicsEffect(effect)
+        fade = QPropertyAnimation(effect, b"opacity", self)
+        fade.setStartValue(0.0)
+        fade.setEndValue(1.0)
+        fade.setDuration(260)
+        fade.setEasingCurve(QEasingCurve.Type.OutCubic)
+        # Remove the effect afterwards: it costs a little on every repaint
+        fade.finished.connect(lambda: self.expanded_container.setGraphicsEffect(None))
+        QTimer.singleShot(90, fade.start)
+        self._content_fade = fade
+
+    def _morph_to(self, target, duration=260, on_done=None, spring=False):
         """Animate the painted body. The real window never moves or resizes."""
         old = getattr(self, "_morph", None)
         if old is not None:
@@ -1175,7 +1247,12 @@ class DynamicIslandWindow(QWidget):
         self._morph.setStartValue(QRectF(self._body))
         self._morph.setEndValue(target)
         self._morph.setDuration(duration)
-        self._morph.setEasingCurve(QEasingCurve.Type.OutCubic)
+        if spring:
+            curve = QEasingCurve(QEasingCurve.Type.OutBack)
+            curve.setOvershoot(0.55)          # soft spring: a hint of bounce, no wobble
+        else:
+            curve = QEasingCurve(QEasingCurve.Type.OutQuint)   # calm, soft landing
+        self._morph.setEasingCurve(curve)
         self._morph.valueChanged.connect(self._on_morph_frame)
         self._morph.finished.connect(self._on_morph_finished)
         self._morph.start()
@@ -1724,41 +1801,73 @@ class DynamicIslandWindow(QWidget):
         self.update()
 
     def paintEvent(self, event):
+        from services import glass
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         body = self._body
         painter.translate(body.topLeft())
         w, h = body.width(), body.height()
 
-        gradient = QLinearGradient(0, 0, 0, h)
-        gradient.setColorAt(0.0, QColor(self.theme["pill_gradient_start"]))
-        gradient.setColorAt(1.0, QColor(self.theme["pill_gradient_end"]))
-        painter.setBrush(QBrush(gradient))
-
-        # Outline: a soft glow in the agent's status colour (working / needs you / done)
         status = self.agent_service.summary()[0]
         glow = {"working": self.theme["warning"], "waiting": self.theme["warning"],
                 "done": self.theme["success"]}.get(status)
+        if glow is None and self._album_color is not None and self.idle_pill.is_playing and not self.is_expanded:
+            glow = self._album_color
         if h < 14:
-            # Resting strip: a small tab on the top edge
+            # Resting strip: a small soft tab on the top edge
             painter.setPen(Qt.PenStyle.NoPen)
-            if glow:
-                painter.setBrush(QBrush(QColor(glow)))
+            c = QColor(glow) if glow is not None else QColor(self.theme["text_secondary"])
+            c.setAlpha(210 if glow is not None else 120)
+            painter.setBrush(QBrush(c))
             painter.drawRoundedRect(QRectF(0, -h, w, 2 * h), h, h)
             return
-        if glow:
-            pen = QColor(glow)
-            pen.setAlpha(190)
-            painter.setPen(QPen(pen, 1.4))
-        elif self.notch_mode:
-            painter.setPen(Qt.PenStyle.NoPen)
-        else:
-            painter.setPen(QPen(QColor(self.theme["border_color"]), 1.2))
 
         if self.notch_mode:
-            painter.drawPath(notch_path(w, h, h > self.compact_h + 12))
+            path = notch_path(w, h, h > self.compact_h + 12)
         else:
             # Corner radius eases between pill and panel as the body grows
             grow = max(0.0, min(1.0, (h - self.compact_h) / max(1.0, self.expanded_h - self.compact_h)))
-            radius = min(h / 2, self.compact_h / 2 + grow * (24 - self.compact_h / 2))
-            painter.drawRoundedRect(QRectF(1, 1, w - 2, h - 2), radius, radius)
+            radius = min(h / 2, self.compact_h / 2 + grow * (26 - self.compact_h / 2))
+            path = QPainterPath()
+            path.addRoundedRect(QRectF(0.5, 0.5, w - 1, h - 1), radius, radius)
+        mat = glass.material(self.theme, self.config.get("glass_material", "frosted")
+                             if self.theme.get("glass") else "solid")
+        if mat["name"] == "solid":
+            mat["tint"] = QColor(self.theme["pill_gradient_end"])
+        blur = self._blur_pixmap if self._blur_ok and self.config.get("glass_blur", True) else None
+        if blur is not None and (blur.width() < int(w) - 2 or blur.height() < int(h) - 2):
+            blur = None                       # stale picture from a smaller shape: skip a frame
+        elif blur is not None:
+            blur = blur.copy(0, 0, int(w), int(h))
+        glass.paint_glass(painter, path, QRectF(0, 0, w, h), mat, blur=blur,
+                          glow=QColor(glow) if glow is not None else None, notch=self.notch_mode)
+
+    # ------------------------------------------------ frosted backdrop
+    def _setup_glass(self):
+        from services import glass
+        self._blur_pixmap = None
+        self._album_color = None
+        self._blur_ok = False
+        self._blur_timer = QTimer(self)
+        self._blur_timer.setInterval(220)
+        self._blur_timer.timeout.connect(self._refresh_blur)
+        if QApplication.platformName() == "windows" and self.windowHandle():
+            self._blur_ok = glass.exclude_from_capture(int(self.winId()))
+        if self._blur_ok:
+            self._blur_timer.start()
+
+    def _refresh_blur(self):
+        from services import glass
+        if (not self.isVisible() or not self.config.get("glass_blur", True)
+                or self._body.height() < 14 or self.config.get("glass_material", "frosted") == "solid"):
+            return
+        g = self.body_global()
+        pm = glass.grab_behind(QRect(g.x(), g.y(), max(1, g.width()), max(1, g.height())))
+        if pm is not None:
+            self._blur_pixmap = glass.frosted(pm)
+            self.update()
+
+    def _on_album_art(self, pixmap):
+        from services import glass
+        self._album_color = glass.average_color(pixmap) if pixmap is not None else None
+        self.update()

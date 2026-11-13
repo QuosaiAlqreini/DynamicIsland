@@ -24,6 +24,7 @@ class MediaService(QObject):
     Qt signal.
     """
     media_updated = pyqtSignal(dict)
+    art_changed = pyqtSignal(object)          # QPixmap of the album cover, or None
     _native_done = pyqtSignal(str, object)   # (kind, result)
 
     def __init__(self, interval_ms=1200):
@@ -44,6 +45,7 @@ class MediaService(QObject):
             "duration_sec": 180
         }
         self._manager = None
+        self._art_key = None                  # track the current cover belongs to
         self._poll_pending = False
         self._loop = None
         self._native_done.connect(self._on_native_done)
@@ -75,7 +77,15 @@ class MediaService(QObject):
         if kind == "poll":
             self._poll_pending = False
             if result:
+                art = result.pop("_art", None)
+                key = f"{result.get('artist')}|{result.get('title')}"
+                if key != self._art_key and art is not None:
+                    self._art_key = key
+                    self.art_changed.emit(self._pixmap(art))
                 self.current_media = result
+            elif self._art_key is not None:
+                self._art_key = None
+                self.art_changed.emit(None)
             self.media_updated.emit(self.current_media)
             return
         # Transport buttons: refresh on success, otherwise use the demo fallback
@@ -124,6 +134,17 @@ class MediaService(QObject):
             except Exception:
                 pass
 
+            # Album cover: read once per track (the poll repeats every second)
+            art = None
+            key = f"{info.artist or 'Unknown Artist'}|{info.title or 'Unknown Track'}"
+            if key != self._art_key:
+                art = b""
+                try:
+                    if info.thumbnail is not None:
+                        art = await self._read_thumbnail(info.thumbnail)
+                except Exception:
+                    art = b""
+
             app_id = session.source_app_user_model_id or "Player"
             app_name = app_id.split("!")[-1] if "!" in app_id else app_id
             if "Spotify" in app_name:
@@ -142,11 +163,37 @@ class MediaService(QObject):
                 "source": app_name,
                 "position_sec": int(pos),
                 "position": float(pos),
-                "duration_sec": int(dur) if dur > 0 else 180
+                "duration_sec": int(dur) if dur > 0 else 180,
+                "_art": art,
             }
         except Exception:
             self._manager = None  # re-acquire next time
             return None
+
+    @staticmethod
+    async def _read_thumbnail(thumb_ref):
+        from winsdk.windows.storage.streams import Buffer, InputStreamOptions, DataReader
+        stream = await thumb_ref.open_read_async()
+        size = int(stream.size)
+        if not size or size > 8_000_000:
+            return b""
+        buf = Buffer(size)
+        await stream.read_async(buf, size, InputStreamOptions.READ_AHEAD)
+        try:
+            return bytes(memoryview(buf))
+        except TypeError:
+            reader = DataReader.from_buffer(buf)
+            data = bytearray(buf.length)
+            reader.read_bytes(data)
+            return bytes(data)
+
+    @staticmethod
+    def _pixmap(data):
+        from PyQt6.QtGui import QPixmap
+        if not data:
+            return None
+        pm = QPixmap()
+        return pm if pm.loadFromData(data) else None
 
     # ----------------------------------------------------------- controls
     async def _transport(self, method):
