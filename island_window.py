@@ -1495,13 +1495,22 @@ class DynamicIslandWindow(QWidget):
         self._cursor_screen = None
         self._dialog_depth = 0
         QTimer.singleShot(3000, self.recover)          # settle after a slow login / autostart
-        if win_input.IS_WINDOWS and QApplication.platformName() == "windows":
-            try:
-                import ctypes
-                # Ask Windows to tell us about lock / unlock
-                ctypes.windll.wtsapi32.WTSRegisterSessionNotification(int(self.winId()), 0)
-            except Exception:
-                pass
+        self._session_registered = False
+
+    def _register_session_events(self):
+        """Ask Windows to tell us about lock / unlock (once the native window really exists)."""
+        if self._session_registered or not win_input.IS_WINDOWS or QApplication.platformName() != "windows":
+            return
+        self._session_registered = True
+        try:
+            import ctypes
+            from ctypes import wintypes
+            wts = ctypes.WinDLL("wtsapi32")
+            wts.WTSRegisterSessionNotification.argtypes = (wintypes.HWND, wintypes.DWORD)
+            wts.WTSRegisterSessionNotification.restype = wintypes.BOOL
+            wts.WTSRegisterSessionNotification(wintypes.HWND(int(self.winId())), 0)
+        except Exception as e:
+            print(f"[island] lock/unlock notifications unavailable: {e}")
 
     def _should_be_visible(self):
         return not (self.user_hidden or self.fullscreen_hidden or getattr(self, "_leaving", False)
@@ -1570,6 +1579,8 @@ class DynamicIslandWindow(QWidget):
         if self.windowHandle():
             win_input.set_click_through(int(self.winId()), self._passthrough)
         self.showEvent_reserve()
+        if hasattr(self, "_session_registered"):
+            QTimer.singleShot(0, self._register_session_events)
 
     def _hot_zone(self):
         """Pill area plus the strip between it and the top edge of the screen."""

@@ -51,7 +51,10 @@ def set_capture_excluded(hwnd, on):
         return exclude_from_capture(hwnd)
     try:
         import ctypes
-        return bool(ctypes.windll.user32.SetWindowDisplayAffinity(hwnd, 0))
+        from ctypes import wintypes
+        user32 = ctypes.windll.user32
+        user32.SetWindowDisplayAffinity.argtypes = (wintypes.HWND, wintypes.DWORD)
+        return bool(user32.SetWindowDisplayAffinity(hwnd, 0))
     except Exception:
         return False
 
