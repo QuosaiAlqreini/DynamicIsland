@@ -8,6 +8,9 @@ import subprocess
 import sys
 
 IS_WINDOWS = sys.platform == "win32"
+IS_LINUX = sys.platform.startswith("linux")
+if IS_LINUX:
+    from services import linux_desktop as _lx
 
 if IS_WINDOWS:
     import ctypes
@@ -134,6 +137,8 @@ def tap_vk(vk, times=1):
 
 def send_combo(combo):
     """Press a combination such as 'Ctrl+Shift+Esc', 'Win+Left' or 'F5'."""
+    if IS_LINUX:
+        return _lx.send_combo(combo)
     if not IS_WINDOWS:
         return _noop("Key sending")
     mods, key = [], None
@@ -157,6 +162,8 @@ def send_combo(combo):
 
 def send_text(text):
     """Type arbitrary Unicode text into the focused app."""
+    if IS_LINUX:
+        return _lx.send_text(text)
     if not IS_WINDOWS:
         return _noop("Typing text")
     seq = []
@@ -275,6 +282,8 @@ CREATE_NO_WINDOW = 0x08000000
 
 
 def set_keep_awake(on):
+    if IS_LINUX:
+        return _lx.set_keep_awake(on)
     if not IS_WINDOWS:
         return _noop("Keep awake")
     flags = ES_CONTINUOUS | (ES_SYSTEM_REQUIRED | ES_DISPLAY_REQUIRED if on else 0)
@@ -282,6 +291,8 @@ def set_keep_awake(on):
 
 
 def lock_pc():
+    if IS_LINUX:
+        return _lx.lock_pc()
     return bool(user32.LockWorkStation()) if IS_WINDOWS else _noop("Lock")
 
 
@@ -298,6 +309,8 @@ def run_hidden(args):
 
 def change_brightness(delta):
     """Laptop screen brightness +/- delta percent via WMI (internal displays only)."""
+    if IS_LINUX:
+        return _lx.brightness_change(int(delta))
     if not IS_WINDOWS:
         return _noop("Brightness")
     delta = int(delta)
@@ -311,6 +324,8 @@ def change_brightness(delta):
 
 
 def sleep_pc():
+    if IS_LINUX:
+        return _lx.sleep_pc()
     if not IS_WINDOWS:
         return _noop("Sleep")
     return run_hidden(["rundll32.exe", "powrprof.dll,SetSuspendState", "0,1,0"])
@@ -318,6 +333,8 @@ def sleep_pc():
 
 def toggle_dark_mode():
     """Flip Windows apps + system theme. Returns True if dark mode is now on."""
+    if IS_LINUX:
+        return _lx.toggle_dark_mode()
     if not IS_WINDOWS:
         return _noop("Dark mode") or None
     import winreg
@@ -336,6 +353,8 @@ def toggle_dark_mode():
 
 def set_launch_at_login(enabled, command):
     """Add/remove the app from HKCU\\...\\Run so it starts with Windows."""
+    if IS_LINUX:
+        return _lx.set_launch_at_login(enabled, command)
     if not IS_WINDOWS:
         return _noop("Launch at login")
     import winreg
@@ -355,6 +374,9 @@ def app_launch_command():
     """Command line that starts this app without a console window."""
     if getattr(sys, "frozen", False):  # packaged .exe
         return f'"{sys.executable}"'
+    if IS_LINUX:
+        script = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "app.py"))
+        return f'"{sys.executable}" "{script}"'
     exe = sys.executable
     if exe.lower().endswith("python.exe"):
         pyw = exe[:-10] + "pythonw.exe"
@@ -392,6 +414,8 @@ def looks_fullscreen(win, mon, zoomed, has_caption, tolerance=2):
 def fullscreen_app_active(island_hwnd=None):
     """True when a full-screen app (game, video, F11 browser, slideshow) is in
     front on the same monitor as the island."""
+    if IS_LINUX:
+        return _lx.fullscreen_app_active()
     if not IS_WINDOWS:
         return False
     try:
@@ -429,6 +453,8 @@ VK_LBUTTON, VK_RBUTTON = 0x01, 0x02
 
 def set_click_through(hwnd, on):
     """Make a window ignore the mouse so clicks land on whatever is underneath."""
+    if IS_LINUX and hwnd:
+        return _qt_click_through(hwnd, on)
     if not IS_WINDOWS or not hwnd:
         return False
     try:
@@ -441,8 +467,25 @@ def set_click_through(hwnd, on):
         return False
 
 
+def _qt_click_through(hwnd, on):
+    """X11: Qt sets an empty input shape for WindowTransparentForInput (works live)."""
+    try:
+        from PyQt6.QtCore import Qt
+        from PyQt6.QtGui import QGuiApplication
+        for w in QGuiApplication.allWindows():
+            if int(w.winId()) == int(hwnd):
+                if bool(w.flags() & Qt.WindowType.WindowTransparentForInput) != bool(on):
+                    w.setFlag(Qt.WindowType.WindowTransparentForInput, bool(on))
+                return True
+    except Exception:
+        pass
+    return False
+
+
 def mouse_button_down():
     """True while the left or right mouse button is held."""
+    if IS_LINUX:
+        return _lx.mouse_button_down()
     if not IS_WINDOWS:
         return False
     return bool((user32.GetAsyncKeyState(VK_LBUTTON) | user32.GetAsyncKeyState(VK_RBUTTON)) & 0x8000)
@@ -450,6 +493,8 @@ def mouse_button_down():
 
 def foreground_process_name():
     """Lower-case exe name of the app in front (e.g. 'chrome.exe'), or ''."""
+    if IS_LINUX:
+        return _lx.foreground_process_name()
     if not IS_WINDOWS:
         return ""
     try:

@@ -9,6 +9,11 @@ try:
 except ImportError:
     HAS_WINSDK = False
 
+import shutil
+import sys
+# Linux: MPRIS players (Spotify, Firefox, Chrome, VLC...) through playerctl
+HAS_MPRIS = sys.platform.startswith("linux") and shutil.which("playerctl") is not None
+
 DEMO_TRACKS = [
     {"title": "Starboy (feat. Daft Punk)", "artist": "The Weeknd", "source": "Spotify"},
     {"title": "Midnight City", "artist": "M83", "source": "Apple Music"},
@@ -49,7 +54,7 @@ class MediaService(QObject):
         self._poll_pending = False
         self._loop = None
         self._native_done.connect(self._on_native_done)
-        if HAS_WINSDK:
+        if HAS_WINSDK or HAS_MPRIS:
             self._loop = asyncio.new_event_loop()
             threading.Thread(target=self._loop.run_forever, name="media-winrt", daemon=True).start()
 
@@ -109,7 +114,19 @@ class MediaService(QObject):
             return
         self.media_updated.emit(self.current_media)
 
+    async def _get_mpris(self):
+        from services import linux_desktop
+        media = linux_desktop.media_read()
+        if not media:
+            return None
+        url = media.pop("art_url", "")
+        key = f"{media['artist']}|{media['title']}"
+        media["_art"] = linux_desktop.media_art(url) if key != self._art_key else None
+        return media
+
     async def _get_native_media(self):
+        if not HAS_WINSDK:
+            return await self._get_mpris()
         try:
             session = await self._session()
             if not session:
@@ -197,6 +214,11 @@ class MediaService(QObject):
 
     # ----------------------------------------------------------- controls
     async def _transport(self, method):
+        if not HAS_WINSDK:
+            from services import linux_desktop
+            return linux_desktop.media_command({"try_toggle_play_pause_async": "play-pause",
+                                                "try_skip_next_async": "next",
+                                                "try_skip_previous_async": "previous"}[method])
         try:
             session = await self._session()
             if session:

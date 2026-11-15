@@ -176,3 +176,15 @@ Started: 2026-10-31 16:50
   or `gemini` with the prompt on stdin (avoids Windows .cmd argument-quoting problems).
 - find() also checks %APPDATA%\npm because apps started at login may lack it on PATH.
 - Tests inject a fake `runner` instead of touching real CLIs.
+
+## US-035 / US-036 - Linux version
+- The app already ran on Linux; Qt xcb needs libxcb-cursor0, libxkbcommon-x11-0, libxcb-icccm4,
+  libxcb-keysyms1, libxcb-xkb1 (CI installs them).
+- services/linux_desktop.py holds all Linux integration; win_input dispatches with IS_LINUX so
+  callers don't change. Wayland -> QT_QPA_PLATFORM=xcb (XWayland) unless the user set one.
+- Click-through on X11: QWindow.setFlag(WindowTransparentForInput) works live.
+- pynput: stopping a GlobalHotKeys listener that is still starting crashes in Xlib; batch the
+  restarts (QTimer 200 ms) and wait() for the listener to be ready.
+- Real X11 behaviour is checked by tests/linux_x11_probe.py under xvfb-run + openbox (needs a WM
+  for _NET_ACTIVE_WINDOW / fullscreen state).
+- Don't ship *.spec files: PyInstaller writes one per build (now ignored).

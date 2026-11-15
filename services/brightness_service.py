@@ -23,6 +23,25 @@ class BrightnessService(QObject):
         self._poke = threading.Event()
         if sys.platform == "win32":
             threading.Thread(target=self._worker, name="brightness", daemon=True).start()
+        elif sys.platform.startswith("linux"):
+            import shutil
+            if shutil.which("brightnessctl"):
+                threading.Thread(target=self._linux_worker, name="brightness", daemon=True).start()
+
+    def _linux_worker(self):
+        from services import linux_desktop
+        while not self._stop.is_set():
+            level = linux_desktop.brightness_get()
+            if level is None:
+                return                  # no backlight (desktop PC / VM)
+            self.available = True
+            if level != self.level:
+                self.level = level
+                self.brightness_changed.emit(level)
+            self._poke.wait(self._interval * 2)
+            if self._poke.is_set():
+                self._poke.clear()
+                time.sleep(0.3)
 
     def check_soon(self):
         self._poke.set()

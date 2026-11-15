@@ -97,6 +97,42 @@ class VolumeService(QObject):
         self._q = queue.Queue()
         if sys.platform == "win32":
             threading.Thread(target=self._worker, name="volume", daemon=True).start()
+        elif sys.platform.startswith("linux"):
+            threading.Thread(target=self._linux_worker, name="volume", daemon=True).start()
+
+    def _linux_worker(self):
+        """PipeWire (wpctl) or PulseAudio (pactl)."""
+        from services import linux_desktop as lx
+        got = lx.volume_get()
+        if not got:
+            self.error = "no wpctl / pactl"
+            return
+        self.available = True
+        self.percent, self.muted = got
+        self.volume_changed.emit(self.percent, self.muted)
+        while True:
+            try:
+                cmd, arg = self._q.get(timeout=1.0)
+            except queue.Empty:
+                now = lx.volume_get()                 # changed with the keyboard keys?
+                if now and now != (self.percent, self.muted):
+                    self.percent, self.muted = now
+                    self.volume_changed.emit(self.percent, self.muted)
+                continue
+            while cmd == "set" and not self._q.empty():
+                nxt = self._q.get_nowait()
+                if nxt[0] != "set":
+                    self._q.put(nxt)
+                    break
+                cmd, arg = nxt
+            if cmd == "set":
+                lx.volume_set(arg)
+            elif cmd == "mute":
+                lx.volume_toggle_mute()
+            now = lx.volume_get()
+            if now:
+                self.percent, self.muted = now
+                self.volume_changed.emit(self.percent, self.muted)
 
     def _worker(self):
         try:

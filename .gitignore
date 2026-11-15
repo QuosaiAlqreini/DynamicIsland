@@ -15,3 +15,4 @@ build/
 dist/
 *.spec.bak
 installer_output/
+*.spec

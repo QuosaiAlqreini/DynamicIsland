@@ -229,6 +229,46 @@ Uninstall from **Settings → Apps → Installed apps → Dynamic Island**. Your
 
 ---
 
+## 🐧 Linux
+
+Works on Ubuntu, Fedora, Mint, Arch and others: X11 directly, and on Wayland (GNOME, KDE) through
+XWayland, which it picks by itself.
+
+**Download:** from the *Build Linux app* run on GitHub Actions (or a Release), get
+`DynamicIsland-…-linux-x86_64.tar.gz`, then:
+```bash
+tar -xzf DynamicIsland-*-linux-x86_64.tar.gz
+cd DynamicIsland-*-linux-x86_64
+./install.sh --autostart      # leave out --autostart if it shouldn't start at login
+```
+It installs for your user only (no sudo). `./uninstall.sh` removes it.
+
+**From source:**
+```bash
+sudo apt install python3-venv libxcb-cursor0 playerctl x11-utils xdotool brightnessctl
+git clone -b claude/charming-sagan-bs9iu8 https://github.com/QuosaiAlqreini/DynamicIsland
+cd DynamicIsland && python3 -m venv .venv && . .venv/bin/activate
+pip install -r requirements.txt && python app.py
+```
+
+| Feature | On Linux it uses |
+|---|---|
+| Music, album art, play/pause | MPRIS through `playerctl` (Spotify, Firefox, Chrome, VLC…) |
+| Volume popup | PipeWire `wpctl` or PulseAudio `pactl` |
+| Brightness popup and keys | `brightnessctl` |
+| Hide during fullscreen, hide for apps | `xprop` |
+| Global hotkeys | X11 / XWayland via `pynput` |
+| Automations that press keys or type | `xdotool` |
+| Keep awake, lock, sleep, dark mode | `systemd-inhibit`, `loginctl`, `systemctl`, `gsettings` |
+| Start at login | `~/.config/autostart` |
+
+**Wayland and global hotkeys:** some Wayland desktops don't let apps listen for keys. Add a shortcut
+in your desktop's keyboard settings that runs one of:
+`dynamic-island --toggle` (open/close), `dynamic-island --command-bar`, `dynamic-island --show-hide`.
+
+Windows-only for now: the glass blur behind the island, the privacy (mic/camera) dots, the
+MacBook taskbar look and "Robo, look at this window".
+
 ## 🚀 Quick Start (from source)
 
 ### Prerequisites

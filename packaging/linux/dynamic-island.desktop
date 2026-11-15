@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Dynamic Island
+Comment=A notch / Dynamic Island for your desktop
+Exec=@EXEC@
+Icon=dynamic-island
+Terminal=false
+Categories=Utility;
+StartupNotify=false

@@ -492,6 +492,34 @@
       ],
       "priority": 34,
       "passes": true
+    },
+    {
+      "id": "US-035",
+      "title": "Linux desktop support",
+      "description": "Run the island on Linux (X11, Wayland via XWayland) with the main features working natively.",
+      "acceptanceCriteria": [
+        "Media via MPRIS/playerctl incl. album art and controls",
+        "Volume via wpctl/pactl, brightness via brightnessctl",
+        "Global hotkeys on X11 (pynput); --toggle/--command-bar/--show-hide for Wayland desktop shortcuts",
+        "Fullscreen hiding and hide-for-apps via xprop; click-through via Qt input shape; mouse buttons via Xlib",
+        "Keep awake, lock, sleep, dark mode, autostart, xdotool automations",
+        "Real X11 probe passes under Xvfb + openbox"
+      ],
+      "priority": 35,
+      "passes": true
+    },
+    {
+      "id": "US-036",
+      "title": "Linux download (tar.gz + install.sh) built and tested in CI",
+      "description": "Ubuntu CI job: tests, real X11 probe, PyInstaller build with packaged self-test, tar.gz artifact with install/uninstall scripts.",
+      "acceptanceCriteria": [
+        "build-linux.sh produces DynamicIsland-<v>-linux-x86_64.tar.gz",
+        "install.sh installs per user (menu entry, icon, ~/.local/bin, optional autostart) and lists missing helper tools per distro",
+        "uninstall.sh removes everything except settings",
+        "Build Linux app workflow green"
+      ],
+      "priority": 36,
+      "passes": true
     }
   ]
 }

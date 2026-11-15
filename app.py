@@ -91,10 +91,37 @@ def create_tray_icon():
     painter.end()
     return QIcon(pixmap)
 
+REMOTE_COMMANDS = {"--toggle": b"toggle", "--command-bar": b"command_bar",
+                   "--show-hide": b"visibility", "--quit": b"quit"}
+
+
+def send_to_running_island(argv):
+    """`dynamic-island --toggle` etc. talks to the island that is already running (for desktop
+    shortcuts, e.g. on Wayland where apps cannot grab global keys). True if one was sent."""
+    cmd = next((REMOTE_COMMANDS[a] for a in argv if a in REMOTE_COMMANDS), None)
+    if cmd is None:
+        return False
+    from PyQt6.QtNetwork import QLocalSocket
+    sock = QLocalSocket()
+    sock.connectToServer(SINGLE_INSTANCE_KEY)
+    if not sock.waitForConnected(1500):
+        print("Dynamic Island is not running.")
+        return True
+    sock.write(cmd)
+    sock.flush()
+    sock.waitForBytesWritten(1000)
+    sock.disconnectFromServer()
+    return True
+
+
 def main():
+    if send_to_running_island(sys.argv):
+        return
+    from services.linux_desktop import prefer_x11
+    prefer_x11()
     selftest = "--selftest" in sys.argv
     app = QApplication(sys.argv)
-    app.setApplicationName("Dynamic Island for Windows")
+    app.setApplicationName("Dynamic Island")
     app.setApplicationVersion(__version__)
     app.setQuitOnLastWindowClosed(False)
     app.setWindowIcon(create_tray_icon())
@@ -268,11 +295,20 @@ def main():
     sys_service.start()
     build_service.start()
 
+    def on_remote_command(data):
+        if b"quit" in data:
+            app.quit()
+        elif b"command_bar" in data:
+            island.toggle_command_bar()
+        elif b"visibility" in data:
+            island.island_actions()["island_visibility"]()
+        else:
+            island.summon()
+
     def on_second_instance():
         conn = instance_server.nextPendingConnection()
         if conn is not None:
-            conn.readyRead.connect(lambda: app.quit() if b"quit" in bytes(conn.readAll())
-                                   else island.summon())
+            conn.readyRead.connect(lambda: on_remote_command(bytes(conn.readAll())))
             conn.disconnected.connect(conn.deleteLater)
     instance_server.newConnection.connect(on_second_instance)
 

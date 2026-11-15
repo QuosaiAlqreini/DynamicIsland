@@ -1345,3 +1345,62 @@ def test_ai_with_my_own_account(qapp, monkeypatch, tmp_path):
     d._save()
     assert c.get("account_tool") == "gemini" and c.get("ai_provider") == "account"
     c.set("ai_provider", "ollama")
+
+
+# ------------------------------------------------------------------ Linux (US-035)
+def test_linux_desktop_parsers(monkeypatch, tmp_path):
+    from services import linux_desktop as lx
+    from services.hotkey_service import pynput_hotkey
+    m = lx.parse_playerctl("Playing\tStarboy\tThe Weeknd\tStarboy\t61000000\t230000000\t"
+                           "https://i.scdn.co/x\tspotify\n")
+    assert (m["title"], m["artist"], m["is_playing"], m["position_sec"], m["duration_sec"],
+            m["source"]) == ("Starboy", "The Weeknd", True, 61, 230, "Spotify")
+    assert lx.parse_playerctl("") is None and lx.parse_playerctl("Stopped\t\t\t\t\t\t\tvlc") is None
+    assert lx.parse_wpctl("Volume: 0.45 [MUTED]") == (45, True)
+    assert lx.parse_wpctl("Volume: 1.00") == (100, False)
+    assert lx.xdotool_combo("Ctrl+Shift+Esc") == "ctrl+shift+Escape"
+    assert lx.xdotool_combo("Win+Left") == "super+Left" and lx.xdotool_combo("F5") == "F5"
+    assert pynput_hotkey("Ctrl+Alt+Space") == "<ctrl>+<alt>+<space>"
+    assert pynput_hotkey("Ctrl+Alt+PgUp") == "<ctrl>+<alt>+<page_up>"
+    assert pynput_hotkey("Win+F12") == "<cmd>+<f12>" and pynput_hotkey("a") is None
+    # Active window / fullscreen from xprop output
+    outs = {("xprop", "-root"): "_NET_ACTIVE_WINDOW: window id # 0x1a00004",
+            ("xprop", "-id"): '_NET_WM_STATE = _NET_WM_STATE_FULLSCREEN\n_NET_WM_PID = 4242\n'
+                              'WM_CLASS = "vlc", "vlc"'}
+    monkeypatch.setattr(lx, "run", lambda args, timeout=2.0: outs.get(tuple(args[:2])))
+    assert lx.active_window_id() == "0x1a00004" and lx.fullscreen_app_active()
+    outs[("xprop", "-id")] = "_NET_WM_PID = 4242"
+    assert not lx.fullscreen_app_active()
+    # Start at login: a .desktop file in ~/.config/autostart
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    lx.set_launch_at_login(True, '"/opt/di/dynamic-island"')
+    text = (tmp_path / "autostart" / "dynamic-island.desktop").read_text()
+    assert 'Exec="/opt/di/dynamic-island"' in text and "Type=Application" in text
+    lx.set_launch_at_login(False, "")
+    assert not (tmp_path / "autostart" / "dynamic-island.desktop").exists()
+
+
+def test_remote_commands_reach_the_running_island(qapp):
+    """`dynamic-island --toggle` (for desktop shortcuts, e.g. on Wayland)."""
+    import app as app_module
+    from PyQt6.QtNetwork import QLocalServer
+    server = QLocalServer()
+    QLocalServer.removeServer(app_module.SINGLE_INSTANCE_KEY)
+    assert server.listen(app_module.SINGLE_INSTANCE_KEY)
+    got = []
+
+    def on_conn():
+        c = server.nextPendingConnection()
+        c.readyRead.connect(lambda: got.append(bytes(c.readAll())))
+    server.newConnection.connect(on_conn)
+    import threading
+    t = threading.Thread(target=lambda: app_module.send_to_running_island(["x", "--command-bar"]))
+    t.start()
+    end = time.time() + 3
+    while not got and time.time() < end:
+        qapp.processEvents()
+        time.sleep(0.02)
+    t.join(3)
+    server.close()
+    assert got == [b"command_bar"]
+    assert app_module.send_to_running_island(["x"]) is False

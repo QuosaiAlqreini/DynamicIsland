@@ -1774,7 +1774,8 @@ class DynamicIslandWindow(QWidget):
     def _fullscreen_tick(self):
         self._refresh_compact_width()
         enabled = ((self.config.get("hide_in_fullscreen", True) or self.config.get("hide_for_apps"))
-                   and win_input.IS_WINDOWS)
+                   and (win_input.IS_WINDOWS
+                        or (win_input.IS_LINUX and QApplication.platformName() == "xcb")))
         if not enabled:
             if self.fullscreen_hidden:
                 self._leave_fullscreen_hide()
