@@ -79,7 +79,8 @@ class BuildWatchService(QObject):
         self.timer.stop()
 
     def _kick_scan(self):
-        if self._scanning or not self.config.get("build_watch_enabled", True):
+        if (self._scanning or not self.config.get("build_watch_enabled", True)
+                or self.config.get("eco_mode", False)):
             return
         self._scanning = True
         patterns = list(self.config.get("build_watch_patterns", []))

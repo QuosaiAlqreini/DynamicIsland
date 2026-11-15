@@ -181,7 +181,7 @@ class AIService(QObject):
         user = {"role": "user", "content": prompt}
         if image_b64:
             user["images"] = [image_b64]
-        keep = self.config.get("ollama_keep_alive", "5m")
+        keep = "0" if self.config.get("eco_mode", False) else self.config.get("ollama_keep_alive", "5m")
         payload = {"model": model, "messages": msgs + [user], "stream": False, "think": False,
                    "keep_alive": 0 if str(keep) == "0" else keep}
         r = requests.post(f"{base}/api/chat", json=payload, timeout=timeout)

@@ -1180,3 +1180,45 @@ def test_ai_migration_and_settings_dialog(qapp):
     c.set("openai_compat_key", "")
     c.set("ollama_model", "qwen3.5:4b")
     w.close()
+
+
+# ------------------------------------------------------------------ RAM + Eco (US-031)
+def test_memory_view_groups_apps_and_gives_tips():
+    from services.memory_service import group_processes, tips, friendly_name, scan, fmt
+    GB = 2**30
+    apps = group_processes([("msedge.exe", GB), ("msedge.exe", GB), ("Code.exe", GB // 2),
+                            ("ollama_llama_server.exe", 4 * GB), ("x.exe", 0)])
+    assert apps[0] == ("Ollama (local AI)", 4 * GB, 1) and apps[1] == ("Microsoft Edge", 2 * GB, 2)
+    assert friendly_name("Weird.exe") == "Weird" and fmt(GB // 4) == "256 MB"
+    t = tips({"apps": apps, "total": 16 * GB, "percent": 85})
+    assert any("Free the RAM" in x for x in t) and any("sleeping tabs" in x for x in t)
+    assert any("almost full" in x for x in t) and any("Eco mode" in x for x in t)
+    assert not any("Eco mode" in x for x in tips({"apps": [], "total": GB}, eco_on=True))
+    real = scan()
+    assert real["apps"] and real["own"] > 10 * 2**20 and real["total"] > 0
+
+
+def test_eco_mode_lightens_the_island(qapp):
+    from modules.system_widget import SystemWidget
+    w = _island()
+    w.config.set("eco_mode", False)
+    w.apply_eco()
+    assert w.sys_service.timer.interval() == 1000 and w.lyrics_service.enabled
+    w.sys_widget.eco.setChecked(True)              # the 🌿 Eco switch on the System tab
+    assert w.config.get("eco_mode") and not w._blur_wanted()
+    assert w.sys_service.timer.interval() == 3000 and w.idle_pill.anim_timer.interval() == 100
+    assert not w.lyrics_service.enabled and not w.weather_service.enabled
+    w.sys_widget.update_memory({"apps": [("Google Chrome", 2**31, 9)], "own": 90 * 2**20,
+                                "total": 2**34, "percent": 40}, ["tip one", "tip two"])
+    assert w.sys_widget.rows[0].name == "Google Chrome  ×9" and w.sys_widget.own.text() == "Island 90 MB"
+    assert w.sys_widget.tip.text() == "💡 tip one"
+    w.sys_widget._next_tip()
+    assert w.sys_widget.tip.text() == "💡 tip two"
+    w.open_tab(1)                                   # the System tab scans only while visible
+    _settle(qapp, 0.3)
+    assert w.memory_service.timer.isActive()
+    w.collapse()
+    _settle(qapp, 0.3)
+    assert not w.memory_service.timer.isActive()
+    w.set_eco_mode(False)
+    assert w.sys_service.timer.interval() == 1000 and w.lyrics_service.enabled

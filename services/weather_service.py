@@ -51,7 +51,7 @@ class WeatherService(QObject):
 
     @property
     def enabled(self):
-        return bool(self.config.get("weather_enabled", True))
+        return bool(self.config.get("weather_enabled", True)) and not self.config.get("eco_mode", False)
 
     def start(self):
         self.timer.start()

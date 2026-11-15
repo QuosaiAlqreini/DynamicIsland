@@ -18,6 +18,7 @@ from styles import get_theme, THEMES
 from modules.pill_idle import IdlePillWidget
 from modules.media_widget import MediaWidget
 from modules.system_widget import SystemWidget
+from services.memory_service import MemoryService, tips as memory_tips, trim_own_memory
 from modules.quick_tools_widget import QuickToolsWidget
 from modules.ai_settings import AISettingsDialog
 from modules.shelf_widget import ShelfWidget
@@ -195,6 +196,7 @@ class DynamicIslandWindow(QWidget):
         self._setup_visibility()
         self._setup_glass()
         self._setup_keepalive()
+        self.apply_eco()
         if self.config.get("remember_last_tab", True):
             last = self.config.get("last_tab", 0)
             if last == 2:
@@ -388,6 +390,46 @@ class DynamicIslandWindow(QWidget):
                 btn.setText(f"{icon} {label}" if i == index else icon)
         if save and self.config.get("remember_last_tab", True):
             self.config.set("last_tab", index)
+        self._sync_memory_watch()
+
+    def _sync_memory_watch(self):
+        """Scan the RAM users only while the System tab is open."""
+        if hasattr(self, "memory_service"):
+            self.memory_service.watch(self.is_expanded and self.stack.currentIndex() == TAB_SYSTEM)
+
+    def set_eco_mode(self, on):
+        """Eco mode: lighter on RAM / CPU / battery. No blur, lyrics, weather or build watching,
+        slower polling, and the local AI model leaves RAM right after answering."""
+        on = bool(on)
+        self.config.set("eco_mode", on)
+        self.apply_eco()
+        self.sys_widget.set_eco(on)
+        self.idle_pill.flash("🌿 Eco mode on" if on else "Eco mode off", self.theme["success"], 2200)
+        if self.memory_service.last:
+            self.memory_service.refresh()
+
+    def apply_eco(self):
+        eco = bool(self.config.get("eco_mode", False))
+        for obj, normal, slow in ((self.sys_service.timer, 1000, 3000),
+                                  (self.media_service.timer, 1200, 2500),
+                                  (self.idle_pill.anim_timer, 50, 100),
+                                  (getattr(self.media_widget, "anim_timer", None), 50, 120),
+                                  (getattr(self.notices_service, "timer", None), 700, 1500),
+                                  (self.fullscreen_timer, 700, 1400)):
+            if obj is not None:
+                obj.setInterval(slow if eco else normal)
+        if hasattr(self, "_blur_timer"):
+            self._apply_capture_setting()
+            if getattr(self, "_blur_ok", False) and self._blur_wanted():
+                self._blur_timer.start()
+            else:
+                self._blur_timer.stop()
+                self._blur_pixmap = None
+        if eco:
+            self.lyrics_service._set_line("") if hasattr(self.lyrics_service, "_set_line") else None
+            QTimer.singleShot(1500, trim_own_memory)
+        else:
+            self.weather_service.refresh()
 
     def island_actions(self):
         """Callbacks the automation engine can trigger."""
@@ -494,7 +536,7 @@ class DynamicIslandWindow(QWidget):
         if hasattr(self, "_blur_timer"):
             self._apply_capture_setting()
         if getattr(self, "_blur_ok", False):
-            if self.config.get("glass_blur", True):
+            if self._blur_wanted():
                 self._blur_timer.start()
             else:
                 self._blur_timer.stop()
@@ -611,6 +653,11 @@ class DynamicIslandWindow(QWidget):
         # System updates
         self.sys_service.stats_updated.connect(self.idle_pill.update_system)
         self.sys_service.stats_updated.connect(self.sys_widget.update_system)
+        self.memory_service = MemoryService(parent=self)
+        self.memory_service.updated.connect(
+            lambda r: self.sys_widget.update_memory(r, memory_tips(r, self.config.get("eco_mode", False))))
+        self.sys_widget.eco_toggled.connect(self.set_eco_mode)
+        self.sys_widget.set_eco(self.config.get("eco_mode", False))
 
         # AI updates & Vision
         self.ai_service.status_changed.connect(self.idle_pill.update_agent_status)
@@ -1309,6 +1356,7 @@ class DynamicIslandWindow(QWidget):
         self.expanded_container.show()
         self._fade_in_content()
         self._morph_to(self._expanded_rect(), 420, None, spring=True)
+        self._sync_memory_watch()
 
     def collapse(self):
         if not self.is_expanded:
@@ -1321,6 +1369,9 @@ class DynamicIslandWindow(QWidget):
         self._sync_prompt_state()
         self._update_passthrough()
         self._settle(320)
+        self._sync_memory_watch()
+        if self.config.get("eco_mode", False):
+            QTimer.singleShot(1200, trim_own_memory)       # hand unused memory back to Windows
 
 
 
@@ -2046,7 +2097,7 @@ class DynamicIslandWindow(QWidget):
                              if self.theme.get("glass") else "solid")
         if mat["name"] == "solid":
             mat["tint"] = QColor(self.theme["pill_gradient_end"])
-        blur = self._blur_pixmap if self._blur_ok and self.config.get("glass_blur", True) else None
+        blur = self._blur_pixmap if self._blur_ok and self._blur_wanted() else None
         if blur is not None and (blur.width() < int(w) - 2 or blur.height() < int(h) - 2):
             blur = None                       # stale picture from a smaller shape: skip a frame
         elif blur is not None:
@@ -2066,20 +2117,23 @@ class DynamicIslandWindow(QWidget):
         if QApplication.platformName() == "windows" and self.windowHandle():
             self._blur_ok = glass.exclude_from_capture(int(self.winId()))
             self._apply_capture_setting()
-        if self._blur_ok and self.config.get("glass_blur", True):
+        if self._blur_ok and self._blur_wanted():
             self._blur_timer.start()
+
+    def _blur_wanted(self):
+        return bool(self.config.get("glass_blur", True)) and not self.config.get("eco_mode", False)
 
     def _apply_capture_setting(self):
         """Excluded from captures while the blur is on (it needs that) or when asked to hide."""
         from services import glass
         if QApplication.platformName() != "windows" or not self.windowHandle():
             return
-        on = bool(self.config.get("glass_blur", True) or self.config.get("hide_from_capture", False))
+        on = bool(self._blur_wanted() or self.config.get("hide_from_capture", False))
         glass.set_capture_excluded(int(self.winId()), on)
 
     def _refresh_blur(self):
         from services import glass
-        if (not self.isVisible() or not self.config.get("glass_blur", True)
+        if (not self.isVisible() or not self._blur_wanted()
                 or self._body.height() < 14 or self.config.get("glass_material", "frosted") == "solid"):
             return
         g = self.body_global()

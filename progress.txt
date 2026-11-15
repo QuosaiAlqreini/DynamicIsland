@@ -144,3 +144,15 @@ Started: 2026-10-31 16:50
 - Pattern: a local `json=` parameter in a test fake shadows the module; import json at file top.
 - Windows CI crash (0xC000041D) came from overriding nativeEvent; wake is now detected by a
   wall-clock gap between watchdog ticks instead. Do not override nativeEvent again.
+
+## US-031 - What uses my RAM + Eco mode (v1.11.0)
+- services/memory_service.py: scan() groups processes by friendly app name (rss summed),
+  own_usage() = island + children, tips() picks advice for what was found. Scans run on a
+  thread and only while the System tab is open (MemoryService.watch from _switch_tab /
+  expand / collapse).
+- Measured (Linux offscreen): Python 15 MB -> Qt 41 MB -> imports 60 MB -> island 80-85 MB.
+  On Windows expect more (winsdk, pywin32). The biggest optional costs: glass blur timer
+  (screen grab every 220 ms) and a loaded local AI model (~4 GB for qwen3.5:4b).
+- eco_mode: _blur_wanted() replaces direct glass_blur checks; lyrics/weather `enabled` and
+  build watch check eco; apply_eco() sets timer intervals; ollama keep_alive 0; on fold the
+  process calls EmptyWorkingSet (psapi, argtypes set) to hand pages back to Windows.

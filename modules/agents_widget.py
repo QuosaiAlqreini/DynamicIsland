@@ -58,7 +58,7 @@ class AgentsWidget(QWidget):
         right = QVBoxLayout()
         right.setSpacing(5)
         head = QHBoxLayout()
-        self.badge = QLabel("👾 AI AGENTS")
+        self.badge = QLabel("👾 ROBO · AI & AGENTS")
         head.addWidget(self.badge)
         head.addStretch()
         self.project = QLabel("")

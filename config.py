@@ -17,7 +17,8 @@ DEFAULT_CONFIG = {
     "weather_unit": "c",
     "break_eye_enabled": True,         # every 20 min of active use: look away for 20 s
     "break_hourly_enabled": True,      # every hour of active use: take a short break
-    "notices_enabled": True,           # Caps Lock, charger, internet in the notch
+    "notices_enabled": True,
+    "eco_mode": False,                 # lighter: no blur / lyrics / weather / build watching, slower polling           # Caps Lock, charger, internet in the notch
     "recent_colors": [],            # album art + waveform beside the notch while music plays
     "expand_on_hover": True,
     "hover_delay_ms": 120,

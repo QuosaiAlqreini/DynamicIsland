@@ -256,13 +256,32 @@ Uninstall from **Settings → Apps → Installed apps → Dynamic Island**. Your
 
 ---
 
-## ⚙️ Connecting Your AI Account (Free Tier)
+## 👾 Robo, your free AI (Qwen 3.5)
 
-1. Hover over the Island, click the **🤖 AI Companion** tab, and click the **⚙️** icon in the header (or right-click the island ➔ `⚙️ Preferences & AI Accounts`).
-2. Choose **Google Gemini** from the AI Provider dropdown.
-3. Click **"🔗 Get Free Account / API Key"** to open [Google AI Studio](https://aistudio.google.com/app/apikey) in your browser.
-4. Copy your key, paste it into the **API Key** field, and click **⚡ Test Connection**.
-5. Click **Save Settings**! Now you can click **`👁️ See Screen`** anytime for instant vision pair-programming!
+All AI lives in the **👾 Robo** tab: type a question, **👁** looks at your screen, **📋** explains what
+you copied, **🛠** fixes the code you copied. Drop Robo on a window to ask about that window.
+Double-click any answer to copy it.
+
+**Free and private (default): Qwen 3.5 on your laptop**
+1. Install [Ollama](https://ollama.com/download/windows) and open it once.
+2. In the Robo tab press **⚙** ➔ **⬇ Download qwen3.5:4b** (one time, ~3 GB, progress bar shown).
+3. Press **⚡ Save & test**. Done: no account, no key, works offline.
+
+Pick `qwen3.5:2b` on 8 GB laptops (faster, less RAM) or `qwen3.5:9b` on 16 GB+. Tick
+*“Free the RAM right after each answer”* if you want the model out of memory between questions.
+
+**Free cloud instead:** choose *Free cloud* ➔ OpenRouter (free models) or Groq (free tier) ➔
+**Get a key** ➔ paste it. LM Studio on your laptop works too (no key). Gemini, Claude and OpenAI
+keys are also supported.
+
+## 🌿 What uses my RAM / Eco mode
+
+The **⚡ Sys** tab lists the apps using the most memory (all their processes added up), how much
+the island itself uses, and a tip that fits what it found (click the tip for the next one). The list
+is only scanned while you look at it.
+
+**🌿 Eco** makes the island lighter: no glass blur (it re-captures the screen several times a second),
+no lyrics, weather or build watching, slower polling, and the local AI leaves RAM after each answer.
 
 ---
 

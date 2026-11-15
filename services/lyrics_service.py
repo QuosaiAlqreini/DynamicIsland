@@ -49,7 +49,7 @@ class LyricsService(QObject):
 
     @property
     def enabled(self):
-        return bool(self.config.get("lyrics_enabled", True))
+        return bool(self.config.get("lyrics_enabled", True)) and not self.config.get("eco_mode", False)
 
     def update_media(self, media):
         if not self.enabled or not media.get("has_media"):
