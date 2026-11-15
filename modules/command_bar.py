@@ -143,6 +143,11 @@ class CommandBar(QWidget):
                 break
         if low.startswith("note ") and len(q) > 5:
             out.append((f"📝 Add to notes: {q[5:]}", lambda: isl.notes_widget.append_text(q[5:])))
+        if low in ("color", "colour", "pick", "picker", "eyedropper"):
+            out.append(("🎨 Pick a colour from the screen", isl.pick_color))
+        if low.startswith("weather") and getattr(isl, "weather_service", None) and isl.weather_service.current:
+            w = isl.weather_service.current
+            out.append((f"{w['icon']} {w['temp']}° {w['words']} · high {w['high']}° low {w['low']}°", None))
         if low in ("water", "drink"):
             out.append(("💧 Log a glass of water", isl.day_service.add_water))
 

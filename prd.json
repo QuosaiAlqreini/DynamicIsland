@@ -382,6 +382,23 @@
       "priority": 26,
       "passes": true,
       "notes": "services/glass.py, services/brightness_service.py; blur and thumbnail not verifiable off Windows"
+    },
+    {
+      "id": "US-027",
+      "title": "Reliable visibility after wake/unlock/monitor changes + CrestIsland tools",
+      "description": "Fix island missing after opening the laptop; add notices, privacy dots, breaks, weather, colour picker, clipboard chips, progress strip, dancing Robo, sun-following glass, hide from capture.",
+      "acceptanceCriteria": [
+        "Target monitor chosen explicitly (primary / cursor / named), never the window's last screen",
+        "Recover on screen add/remove/geometry change, WM_POWERBROADCAST resume, WTS unlock, WM_DISPLAYCHANGE, plus 2.5 s watchdog; topmost re-asserted",
+        "Notices for Caps Lock, power source, connectivity; mic/camera privacy dots via ConsentStore",
+        "20-20-20 and hourly breaks from active time (GetLastInputInfo)",
+        "Open-Meteo weather in pill/home/command bar",
+        "Colour picker overlay with magnifier; clip decode for JWT/Unix/JSON/trackers/Base64",
+        "Strip shows song progress; Robo dances while music plays; follow-sun materials; capture exclusion option"
+      ],
+      "priority": 27,
+      "passes": true,
+      "notes": "crestisland.app is a JS demo; features taken from github.com/andrealo20/crest README"
     }
   ]
 }

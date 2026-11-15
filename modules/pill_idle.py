@@ -31,6 +31,7 @@ class IdlePillWidget(QWidget):
         self.wave_phase = 0.0
         self.robo_mood = "idle"
         self.album_art = None
+        self.privacy = (False, False)       # microphone, camera in use
         self.music_enabled = True
         self._t0 = time.monotonic()
 
@@ -73,6 +74,13 @@ class IdlePillWidget(QWidget):
             self.wave_phase = (self.wave_phase + 0.25) % (2 * math.pi)
         if "ai_dot" in self.slots or "robo" in self.slots or self.is_playing:
             self.update()
+
+    def set_privacy(self, mic, cam):
+        self.privacy = (bool(mic), bool(cam))
+        self.update()
+
+    def _effective_robo_mood(self):
+        return "dance" if self.robo_mood == "idle" and self.is_playing else self.robo_mood
 
     def set_album_art(self, pixmap):
         self.album_art = pixmap
@@ -169,6 +177,26 @@ class IdlePillWidget(QWidget):
 
     def paintEvent(self, event):
         painter = QPainter(self)
+        try:
+            self._paint_content(painter)
+        finally:
+            self._paint_privacy(painter)
+
+    def _paint_privacy(self, painter):
+        """Green dot(s) top-right while the microphone and/or camera is in use."""
+        mic, cam = self.privacy
+        if not (mic or cam):
+            return
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setPen(Qt.PenStyle.NoPen)
+        x = self.width() - 4
+        for on, color in ((cam, "#34c759"), (mic, "#ff9f0a")):
+            if on:
+                painter.setBrush(QBrush(QColor(color)))
+                painter.drawEllipse(x - 5, 2, 5, 5)
+                x -= 8
+
+    def _paint_content(self, painter):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         w, h = self.width(), self.height()
         painter.setFont(QFont("Segoe UI", 10, QFont.Weight.DemiBold))
@@ -217,7 +245,7 @@ class IdlePillWidget(QWidget):
             from modules.robo import paint_robo
             from PyQt6.QtCore import QRectF
             size = min(22, h - 4)
-            paint_robo(painter, QRectF(x, (h - size) / 2, size, size), self.robo_mood,
+            paint_robo(painter, QRectF(x, (h - size) / 2, size, size), self._effective_robo_mood(),
                        time.monotonic() - self._t0, self.theme)
         elif slot == "ai_dot":
             self._paint_ai_dot(painter, x, h)

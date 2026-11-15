@@ -192,6 +192,7 @@ class DynamicIslandWindow(QWidget):
         self._layout_children()
         self._setup_visibility()
         self._setup_glass()
+        self._setup_keepalive()
         if self.config.get("remember_last_tab", True):
             last = self.config.get("last_tab", 0)
             if isinstance(last, int) and 0 <= last < self.stack.count():
@@ -284,6 +285,7 @@ class DynamicIslandWindow(QWidget):
                 ("🏠", "Home", lambda: self._switch_tab(TAB_HOME), "l"),
                 ("＋", "Add a task or reminder", lambda: self.open_tab_by_key("tasks"), "l"),
                 ("🔎", "Command bar", lambda: self.toggle_command_bar(), "l"),
+                ("🎨", "Pick a colour from the screen", lambda: self.pick_color(), "l"),
                 ("🔊", "Mute / unmute", lambda: self.volume_service.toggle_mute(), "r"),
                 ("⚙", "Settings: look, tabs, shortcuts, everything", lambda: self.open_customize(), "r"),
                 ("✕", "Close (Esc)", lambda: self.collapse(), "r")):
@@ -394,6 +396,7 @@ class DynamicIslandWindow(QWidget):
             "collapse": self.collapse,
             "through_toggle": self.toggle_through_mode,
             "island_visibility": self.toggle_visibility,
+            "color_picker": lambda: self.pick_color(),
             "brightness_service": lambda: getattr(self, "brightness_service", None),
             "style_toggle": lambda: self.set_style(not self.notch_mode),
             "command_bar": self.toggle_command_bar,
@@ -407,6 +410,7 @@ class DynamicIslandWindow(QWidget):
         """Show a settings window above the island (which normally floats over everything)."""
         hwnd = int(self.winId()) if self.windowHandle() else None
         was_summoned, self.summoned = self.summoned, True     # keep the island visible meanwhile
+        self._dialog_depth = getattr(self, "_dialog_depth", 0) + 1
         win_input.set_topmost(hwnd, False)
         try:
             dlg.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
@@ -415,7 +419,9 @@ class DynamicIslandWindow(QWidget):
             dlg.activateWindow()
             return dlg.exec()
         finally:
-            win_input.set_topmost(hwnd, True)
+            self._dialog_depth = max(0, self._dialog_depth - 1)
+            if not self._dialog_depth:
+                win_input.set_topmost(hwnd, True)
             self.summoned = was_summoned
 
     def open_customize(self, page=None):
@@ -481,6 +487,8 @@ class DynamicIslandWindow(QWidget):
                                  self.config.get("pill_right", "none"))
         self.notch_mode = self.config.get("notch_mode", False)
         self.idle_pill.music_enabled = bool(self.config.get("music_in_notch", True))
+        if hasattr(self, "_blur_timer"):
+            self._apply_capture_setting()
         if getattr(self, "_blur_ok", False):
             if self.config.get("glass_blur", True):
                 self._blur_timer.start()
@@ -632,6 +640,7 @@ class DynamicIslandWindow(QWidget):
         self.media_service.art_changed.connect(self.media_widget.set_album_art)
         self.media_service.art_changed.connect(self._on_album_art)
         self.media_service.media_updated.connect(self._on_media_for_width)
+        self.media_service.media_updated.connect(self._repaint_strip)
         self.lyrics_service.line_changed.connect(self.media_widget.set_lyric)
         self.lyrics_service.line_changed.connect(lambda _l: self.idle_pill.update())
         self.volume_service.volume_changed.connect(self.media_widget.set_volume)
@@ -649,6 +658,23 @@ class DynamicIslandWindow(QWidget):
         self._volume_hud_timer.setSingleShot(True)
         self._volume_hud_timer.timeout.connect(self._clear_level_hud)
         self.volume_service.refresh()
+
+        # CrestIsland-style extras: notices, privacy dots, breaks, weather
+        from services.notices_service import NoticesService
+        from services.breaks_service import BreaksService
+        from services.weather_service import WeatherService
+        self.notices_service = NoticesService(self)
+        self.notices_service.notice.connect(self._on_notice)
+        self.notices_service.privacy_changed.connect(self.idle_pill.set_privacy)
+        self.sys_service.stats_updated.connect(self.notices_service.update_power)
+        self.breaks_service = BreaksService(self)
+        self.breaks_service.paused = lambda: self.fullscreen_hidden or self.timer_service.running
+        self.breaks_service.eye_break.connect(self._on_eye_break)
+        self.breaks_service.long_break.connect(self._on_long_break)
+        self.weather_service = WeatherService(self)
+        self.info_service.weather = self.weather_service
+        self.weather_service.updated.connect(self._on_weather)
+        self.weather_service.start()
 
         # AI agents (Claude Code / Codex)
         self.agent_service.changed.connect(self._on_agents_changed)
@@ -774,6 +800,61 @@ class DynamicIslandWindow(QWidget):
         self._volume_hud_timer.start(1600)
         if self.tucked and not self.user_hidden and not self.fullscreen_hidden:
             self._reveal()
+
+    # --------------------------------------------- notices, breaks, sun, colour
+    def _on_weather(self, _w):
+        self.idle_pill.update()
+        self._apply_sun_theme()
+
+    def _on_notice(self, text, role):
+        if self.config.get("notices_enabled", True):
+            self.idle_pill.flash(text, self.theme.get(role, self.theme["accent"]), 2600)
+
+    def _on_eye_break(self):
+        self.idle_pill.flash("👀 Look at something far away for 20 seconds", self.theme["accent"], 20000)
+
+    def _on_long_break(self):
+        self.idle_pill.flash("🧘 You've been at it an hour: stand up and stretch", self.theme["success"], 15000)
+        self.notify.emit("🧘 Time for a short break", "An hour of screen time. Stretch, drink some water, rest your eyes.")
+
+    def _is_daytime(self):
+        w = getattr(self.weather_service, "current", None) if hasattr(self, "weather_service") else None
+        if w is not None:
+            return bool(w["is_day"])
+        import datetime as _dt
+        try:
+            times = self.day_service.prayer_times()
+            now = _dt.datetime.now()
+            return times["Sunrise"] <= now < times["Maghrib"]
+        except Exception:
+            return 7 <= _dt.datetime.now().hour < 19
+
+    def _apply_sun_theme(self):
+        """Light glass by day, dark glass at night, if chosen."""
+        if not self.config.get("glass_follow_sun", False):
+            return
+        want = "milk" if self._is_daytime() else "frosted"
+        if self.config.get("glass_material", "frosted") != want:
+            self.config.set("glass_material", want)
+            self.apply_customization()
+
+    def pick_color(self):
+        from modules.color_picker import ColorPicker
+        self.collapse()
+
+        def start():
+            self._picker = ColorPicker()
+            self._picker.picked.connect(self._on_color_picked)
+            self._picker.start()
+        QTimer.singleShot(350, start)
+
+    def _on_color_picked(self, color):
+        from modules.color_picker import color_formats
+        f = color_formats(color)
+        QApplication.clipboard().setText(f["hex"])
+        recent = [c for c in self.config.get("recent_colors", []) if c != f["hex"]]
+        self.config.set("recent_colors", [f["hex"]] + recent[:9])
+        self.idle_pill.flash(f"🎨 {f['hex']} copied  ·  {f['rgb']}", self.theme["accent"], 4000)
 
     def _clear_level_hud(self):
         self.idle_pill.clear_activity("volume")
@@ -1028,12 +1109,26 @@ class DynamicIslandWindow(QWidget):
             self.ai_widget.update_model_label(f"AI: {provider}")
             self.apply_customization()
 
+    def target_screen(self):
+        """The monitor the island lives on: primary (default), the one with the cursor, or a chosen one.
+
+        Never "wherever the window happens to be": after sleep or unplugging a monitor
+        that place can be stale or gone, which made the island disappear."""
+        screens = QApplication.screens()
+        choice = self.config.get("island_monitor", "primary")
+        if choice == "cursor":
+            s = QApplication.screenAt(QCursor.pos())
+            if s is not None:
+                return s
+        elif choice not in ("primary", "", None):
+            for s in screens:
+                if s.name() == choice:
+                    return s
+        return QApplication.primaryScreen() or (screens[0] if screens else None)
+
     def _get_screen_geometry(self):
-        screen = self.screen() or self.windowHandle().screen() if self.windowHandle() else None
-        if not screen:
-            from PyQt6.QtWidgets import QApplication
-            screen = QApplication.primaryScreen()
-        return screen.geometry()
+        screen = self.target_screen()
+        return screen.geometry() if screen is not None else QRect(0, 0, 1280, 800)
 
     def _apply_size_profile(self):
         """Window sizes from the configured size + style (the notch gets extra room)."""
@@ -1116,6 +1211,8 @@ class DynamicIslandWindow(QWidget):
         return self._centered(self.expanded_w, self.expanded_h, self._oy())
 
     def _strip_rect(self):
+        if self.idle_pill.is_playing and self.config.get("music_in_notch", True):
+            return self._centered(170, STRIP_HEIGHT, 0)      # wider: shows the song's progress
         return self._centered(max(46, min(120, self.base_compact_w * 0.5)), STRIP_HEIGHT, 0)
 
     def _prompt_rect(self):
@@ -1381,6 +1478,91 @@ class DynamicIslandWindow(QWidget):
                 self.setWindowOpacity(1.0)
         if not self._morphing():
             self._update_mask()
+
+    # ------------------------------------------- staying visible (sleep, unlock, monitors)
+    def _setup_keepalive(self):
+        app = QApplication.instance()
+        app.screenAdded.connect(self._on_screens_changed)
+        app.screenRemoved.connect(self._on_screens_changed)
+        app.primaryScreenChanged.connect(self._on_screens_changed)
+        for s in app.screens():
+            s.geometryChanged.connect(self._on_screens_changed)
+        app.screenAdded.connect(lambda s: s.geometryChanged.connect(self._on_screens_changed))
+        self._watchdog = QTimer(self)
+        self._watchdog.setInterval(2500)
+        self._watchdog.timeout.connect(self._keepalive_tick)
+        self._watchdog.start()
+        self._cursor_screen = None
+        self._dialog_depth = 0
+        QTimer.singleShot(3000, self.recover)          # settle after a slow login / autostart
+        if win_input.IS_WINDOWS and QApplication.platformName() == "windows":
+            try:
+                import ctypes
+                # Ask Windows to tell us about lock / unlock
+                ctypes.windll.wtsapi32.WTSRegisterSessionNotification(int(self.winId()), 0)
+            except Exception:
+                pass
+
+    def _should_be_visible(self):
+        return not (self.user_hidden or self.fullscreen_hidden or getattr(self, "_leaving", False)
+                    or (self.tucked and not self._strip_mode()))
+
+    def _on_screens_changed(self, *_):
+        QTimer.singleShot(400, self.recover)
+
+    def recover(self):
+        """Put the island back where it belongs and make sure it can be seen."""
+        self._sync_window()
+        if self.windowHandle():
+            win_input.set_click_through(int(self.winId()), self._passthrough)
+            if not getattr(self, "_dialog_depth", 0):
+                win_input.set_topmost(int(self.winId()), True)
+        if self._should_be_visible():
+            if not self.isVisible():
+                self._glide_in()
+            else:
+                self._settle(0)
+        self.update_reserved_space()
+
+    def _repaint_strip(self, _media=None):
+        if self.tucked:
+            self.update()
+
+    def _keepalive_tick(self):
+        self._sun_ticks = getattr(self, "_sun_ticks", 0) + 1
+        if self._sun_ticks % 24 == 0:          # about once a minute
+            self._apply_sun_theme()
+        # Follow the cursor to another monitor, if chosen
+        if self.config.get("island_monitor", "primary") == "cursor" and not self.is_expanded:
+            s = QApplication.screenAt(QCursor.pos())
+            if s is not None and s is not self._cursor_screen:
+                self._cursor_screen = s
+                self._sync_window()
+                self._settle(0)
+        if self.is_dragging or self._morphing():
+            return
+        wrong_place = QWidget.geometry(self) != self._win_rect()
+        missing = self._should_be_visible() and not self.isVisible()
+        if wrong_place or missing:
+            self.recover()
+        elif self.windowHandle() and not getattr(self, "_dialog_depth", 0) and win_input.IS_WINDOWS:
+            win_input.set_topmost(int(self.winId()), True)     # Windows can drop topmost after sleep
+
+    def nativeEvent(self, event_type, message):
+        if event_type in (b"windows_generic_MSG", "windows_generic_MSG"):
+            try:
+                from ctypes import wintypes
+                msg = wintypes.MSG.from_address(int(message))
+                WM_POWERBROADCAST, WM_WTSSESSION_CHANGE, WM_DISPLAYCHANGE = 0x0218, 0x02B1, 0x007E
+                resumed = msg.message == WM_POWERBROADCAST and msg.wParam in (0x7, 0x12)   # resume
+                unlocked = msg.message == WM_WTSSESSION_CHANGE and msg.wParam in (0x1, 0x8, 0x5)  # connect/unlock/logon
+                if resumed or unlocked or msg.message == WM_DISPLAYCHANGE:
+                    self.fullscreen_hidden = False
+                    for delay in (800, 3000):
+                        QTimer.singleShot(delay, self.recover)
+            except Exception:
+                pass
+        return super().nativeEvent(event_type, message)
 
     def showEvent(self, event):
         super().showEvent(event)
@@ -1834,6 +2016,19 @@ class DynamicIslandWindow(QWidget):
             painter.setPen(Qt.PenStyle.NoPen)
             c = QColor(glow) if glow is not None else QColor(self.theme["text_secondary"])
             c.setAlpha(210 if glow is not None else 120)
+            media = self.media_service.current_media
+            if self.idle_pill.is_playing and self.config.get("music_in_notch", True):
+                # Song progress: a faint track with the played part filled in
+                c.setAlpha(70)
+                painter.setBrush(QBrush(c))
+                painter.drawRoundedRect(QRectF(0, -h, w, 2 * h), h, h)
+                dur = max(1.0, float(media.get("duration_sec", 0) or 1))
+                done = max(0.0, min(1.0, float(media.get("position", media.get("position_sec", 0))) / dur))
+                fill = QColor(self._album_color or QColor(self.theme["accent"]))
+                fill.setAlpha(230)
+                painter.setBrush(QBrush(fill))
+                painter.drawRoundedRect(QRectF(0, -h, max(h, w * done), 2 * h), h, h)
+                return
             painter.setBrush(QBrush(c))
             painter.drawRoundedRect(QRectF(0, -h, w, 2 * h), h, h)
             return
@@ -1869,8 +2064,17 @@ class DynamicIslandWindow(QWidget):
         self._blur_timer.timeout.connect(self._refresh_blur)
         if QApplication.platformName() == "windows" and self.windowHandle():
             self._blur_ok = glass.exclude_from_capture(int(self.winId()))
-        if self._blur_ok:
+            self._apply_capture_setting()
+        if self._blur_ok and self.config.get("glass_blur", True):
             self._blur_timer.start()
+
+    def _apply_capture_setting(self):
+        """Excluded from captures while the blur is on (it needs that) or when asked to hide."""
+        from services import glass
+        if QApplication.platformName() != "windows" or not self.windowHandle():
+            return
+        on = bool(self.config.get("glass_blur", True) or self.config.get("hide_from_capture", False))
+        glass.set_capture_excluded(int(self.winId()), on)
 
     def _refresh_blur(self):
         from services import glass

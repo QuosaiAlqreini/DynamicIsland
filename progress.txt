@@ -123,3 +123,10 @@ Started: 2026-10-31 16:50
   - Light glass needs a light theme with dark text; switch theme automatically with the material.
 - **Not verified on real Windows:** blur capture exclusion, WinRT thumbnail bytes, WMI brightness.
 ---
+
+## 2026-11-15 - US-027 (always visible + CrestIsland tools, v1.10.0)
+- **Root cause of "doesn't show when I open my laptop":** _get_screen_geometry used the window's current screen, so after sleep / monitor changes the island could stay on a stale or missing monitor; nothing re-asserted topmost or re-showed it.
+- **Fix:** explicit target screen, screen-change + resume/unlock/display-change handlers, 2.5 s watchdog (position, visibility, topmost), delayed recover after login.
+- **Added:** notices, privacy dots, break reminders, weather, colour picker, clipboard chips, progress strip, dancing Robo, follow-the-sun glass, hide-from-capture, monitor choice.
+- **Not verified on real Windows:** WTS/power messages, ConsentStore privacy detection, colour picker overlay on multi-DPI setups.
+---

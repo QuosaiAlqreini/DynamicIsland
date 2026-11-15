@@ -104,7 +104,20 @@ class DaySettings(QDialog):
         self._geo_done.connect(self._on_geo_results)
         self._geo_results = []
         c = self.config
-        form = QFormLayout(self)
+        from PyQt6.QtWidgets import QScrollArea, QFrame
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        body = QWidget()
+        body.setObjectName("daybody")
+        body.setStyleSheet("QWidget#daybody { background: transparent; }")
+        scroll.setStyleSheet("QScrollArea, QScrollArea > QWidget > QWidget { background: transparent; }")
+        scroll.setWidget(body)
+        outer.addWidget(scroll)
+        self.resize(560, 640)
+        form = QFormLayout(body)
         form.addRow(QLabel("<b>💧 Water</b>"))
         self.goal = QSpinBox()
         self.goal.setRange(500, 6000)
@@ -227,6 +240,25 @@ class DaySettings(QDialog):
         for spin in self.offset_spins.values():
             spin.valueChanged.connect(self._update_preview)
 
+        form.addRow(QLabel("<b>☀️ Weather</b> (Open-Meteo, uses the location above; only coordinates are sent)"))
+        self.weather_on = QCheckBox("Show the weather")
+        self.weather_on.setChecked(bool(c.get("weather_enabled", True)))
+        form.addRow(self.weather_on)
+        self.weather_unit = QComboBox()
+        self.weather_unit.addItem("°C", "c")
+        self.weather_unit.addItem("°F", "f")
+        self.weather_unit.setCurrentIndex(max(0, self.weather_unit.findData(c.get("weather_unit", "c"))))
+        form.addRow("Unit", self.weather_unit)
+        form.addRow(QLabel("<b>🧘 Breaks & notices</b> (counted from the time you're actually using the PC)"))
+        self.break_eye = QCheckBox("Every 20 minutes: look away for 20 seconds (rests your eyes)")
+        self.break_eye.setChecked(bool(c.get("break_eye_enabled", True)))
+        form.addRow(self.break_eye)
+        self.break_hour = QCheckBox("Every hour: stand up and take a short break")
+        self.break_hour.setChecked(bool(c.get("break_hourly_enabled", True)))
+        form.addRow(self.break_hour)
+        self.notices_on = QCheckBox("Little notices in the notch: Caps Lock, charger, internet lost / back")
+        self.notices_on.setChecked(bool(c.get("notices_enabled", True)))
+        form.addRow(self.notices_on)
         self.pause = QCheckBox("Pause music at prayer time")
         self.pause.setChecked(bool(c.get("prayer_pause_media", False)))
         form.addRow(self.pause)
@@ -337,6 +369,11 @@ class DaySettings(QDialog):
         c.set("prayer_offsets", self._offsets())
         c.set("prayer_asr_hanafi", self.hanafi.isChecked())
         c.set("prayer_pause_media", self.pause.isChecked())
+        c.set("weather_enabled", self.weather_on.isChecked())
+        c.set("weather_unit", self.weather_unit.currentData())
+        c.set("break_eye_enabled", self.break_eye.isChecked())
+        c.set("break_hourly_enabled", self.break_hour.isChecked())
+        c.set("notices_enabled", self.notices_on.isChecked())
         self.accept()
 
 
@@ -420,6 +457,9 @@ class DayWidget(QWidget):
         runner = getattr(self.window(), "run_dialog", None)
         if (runner(dlg) if runner else dlg.exec()):
             self.day.tick()
+            weather = getattr(self.window(), "weather_service", None)
+            if weather is not None:
+                weather.refresh()
 
     def refresh(self):
         self.ring.update()

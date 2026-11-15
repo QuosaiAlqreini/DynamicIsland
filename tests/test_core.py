@@ -877,7 +877,7 @@ def test_rebuilding_tabs_leaves_no_stray_buttons(qapp):
     visible = [b for b in w.expanded_container.findChildren(QPushButton) if b.isVisible()]
     assert all(b.width() < 300 for b in visible), [(b.text(), b.width()) for b in visible if b.width() >= 300]
     nav = [b for b in visible if b.parentWidget() is w.expanded_container]
-    assert len(nav) <= len(w.nav_order) + 6        # tab buttons + toolbar, no leftovers
+    assert len(nav) <= len(w.nav_order) + len(w.tool_buttons)   # tab buttons + toolbar, no leftovers
     c = w._body.center()
     assert w.childAt(int(c.x()), int(c.y())) is not None
     assert not isinstance(w.childAt(int(c.x()), int(c.y())), QPushButton) or w.childAt(int(c.x()), int(c.y())).width() < 300
@@ -925,3 +925,108 @@ def test_rapid_open_close_is_safe(qapp):
     _settle(qapp, 0.9)
     eff = w.expanded_container.graphicsEffect()
     assert eff is None or not eff.isEnabled() or eff.opacity() == 1.0   # content fully visible
+
+
+# ------------------------------------------------ staying visible + Crest extras
+def test_island_lives_on_chosen_screen_and_recovers(qapp):
+    """The island must not depend on where its window happened to be (sleep, unplugged monitor)."""
+    from PyQt6.QtCore import QRect
+    from PyQt6.QtWidgets import QApplication
+    from config import ConfigManager
+    c = ConfigManager()
+    c.set("visibility_mode", "always")
+    c.set("island_monitor", "primary")
+    w = _island()
+    w.show()
+    _settle(qapp, 0.4)
+    assert w.target_screen() is QApplication.primaryScreen()
+    good = w.geometry()
+    w.setGeometry(QRect(5000, 3000, 50, 50))      # e.g. left on a monitor that is gone
+    w.hide()                                      # e.g. lost after waking up
+    w._keepalive_tick()
+    _settle(qapp, 0.6)
+    assert w.isVisible() and w.geometry() == good
+    w.set_user_hidden(True)                       # but a hide you asked for is respected
+    _settle(qapp, 0.5)
+    w._keepalive_tick()
+    _settle(qapp, 0.3)
+    assert not w.isVisible()
+    w.set_user_hidden(False)
+
+
+def test_clipboard_chips():
+    import base64, json
+    from services.clip_decode import decode
+    seg = lambda d: base64.urlsafe_b64encode(json.dumps(d).encode()).decode().rstrip("=")
+    label, out = decode(seg({"alg": "HS256"}) + "." + seg({"sub": "42", "exp": 4000000000}) + ".sig")
+    assert label.startswith("JWT") and '"sub": "42"' in out
+    assert decode("1700000000")[0] == "Unix time"
+    assert decode('{"a": [1, 2]}')[0] == "JSON"
+    label, clean = decode("https://shop.example/item?id=7&utm_source=x&fbclid=abc")
+    assert clean == "https://shop.example/item?id=7" and "2 tracker" in label
+    assert decode(base64.b64encode(b"hello there").decode()) == ("Base64", "hello there")
+    assert decode("just some words") is None and decode("12345") is None
+
+
+def test_breaks_count_active_time_only(qapp):
+    from services.breaks_service import BreaksService
+    from config import ConfigManager
+    ConfigManager().set("break_eye_enabled", True)
+    ConfigManager().set("break_hourly_enabled", True)
+    idle = {"s": 0.0}
+    b = BreaksService(idle_fn=lambda: idle["s"], step=60)
+    b.timer.stop()
+    eyes, longs = [], []
+    b.eye_break.connect(lambda: eyes.append(1))
+    b.long_break.connect(lambda: longs.append(1))
+    for _ in range(19):
+        b.tick()
+    assert not eyes
+    b.tick()
+    assert len(eyes) == 1                         # 20 active minutes -> eye break
+    idle["s"] = 600                               # away for 10 minutes: counts as a break
+    b.tick()
+    idle["s"] = 0
+    for _ in range(19):
+        b.tick()
+    assert len(eyes) == 1                         # counter restarted after being away
+    b.paused = lambda: True                       # full screen / focus: no counting
+    for _ in range(30):
+        b.tick()
+    assert len(eyes) == 1 and not longs
+
+
+def test_weather_parsing_and_pill(qapp):
+    from services.weather_service import parse
+    w = parse({"current": {"temperature_2m": 21.4, "weather_code": 2, "is_day": 1},
+               "daily": {"temperature_2m_max": [24.2], "temperature_2m_min": [13.6],
+                         "sunrise": ["2026-11-15T07:21"], "sunset": ["2026-11-15T16:20"]}})
+    assert (w["temp"], w["icon"], w["high"], w["low"], w["is_day"]) == (21, "⛅", 24, 14, True)
+    assert parse({"current": {"temperature_2m": 3, "weather_code": 0, "is_day": 0}})["icon"] == "🌙"
+    isl = _island()
+    isl.weather_service.current = w
+    assert isl.info_service.slot_text("weather") == "⛅ 21°"
+
+
+def test_privacy_dots_and_notices(qapp):
+    w = _island()
+    w.show()
+    w.idle_pill.set_privacy(True, False)
+    assert w.idle_pill.privacy == (True, False)
+    w.idle_pill.grab()                            # paints without errors
+    svc = w.notices_service
+    got = []
+    svc.notice.connect(lambda text, role: got.append(text))
+    svc.update_power({"battery_plugged": False, "battery_percent": 80})
+    svc.update_power({"battery_plugged": True, "battery_percent": 81})
+    svc.online = True
+    svc._on_net(False)
+    assert got == ["⚡ Charging · 81%", "📡 Internet connection lost"]
+
+
+def test_color_formats_and_contrast():
+    from PyQt6.QtGui import QColor
+    from modules.color_picker import color_formats, contrast_ratio
+    f = color_formats(QColor("#3b6fd8"))
+    assert f["hex"] == "#3B6FD8" and f["rgb"] == "rgb(59, 111, 216)" and f["hsl"].startswith("hsl(")
+    assert round(contrast_ratio(QColor("#000000"), QColor("#ffffff")), 1) == 21.0

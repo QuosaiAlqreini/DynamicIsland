@@ -9,7 +9,16 @@ DEFAULT_CONFIG = {
     "theme": "glass",
     "glass_material": "frosted",       # frosted | smoke | clear | milk | tinted | solid
     "glass_blur": True,                # blur what is behind the island (Windows 10 2004+)
-    "music_in_notch": True,            # album art + waveform beside the notch while music plays
+    "music_in_notch": True,
+    "glass_follow_sun": False,         # light glass by day, dark glass at night
+    "hide_from_capture": False,        # keep the island out of screen sharing / screenshots
+    "island_monitor": "primary",       # primary | cursor | <screen name>
+    "weather_enabled": True,           # Open-Meteo, uses the Day / prayer location
+    "weather_unit": "c",
+    "break_eye_enabled": True,         # every 20 min of active use: look away for 20 s
+    "break_hourly_enabled": True,      # every hour of active use: take a short break
+    "notices_enabled": True,           # Caps Lock, charger, internet in the notch
+    "recent_colors": [],            # album art + waveform beside the notch while music plays
     "expand_on_hover": True,
     "hover_delay_ms": 120,
     "collapse_delay_ms": 300,

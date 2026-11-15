@@ -30,6 +30,7 @@ INFO_TYPE_LABELS = {k: label for k, label, _ in INFO_TYPES}
 PILL_BUILTINS = [
     ("none", "Nothing"),
     ("robo", "Robo (shows what your AI agent is doing)"),
+    ("weather", "Weather (☀️ 21°)"),
     ("ai_dot", "AI status dot"),
     ("clock", "Clock (14:05)"),
     ("clock_seconds", "Clock with seconds"),
@@ -141,6 +142,8 @@ class InfoService(QObject):
 
     def builtin_text(self, key):
         s = self.sys
+        if key == "weather":
+            return self.weather.text() if getattr(self, "weather", None) else ""
         if key == "lyrics":
             return self.lyrics.line if self.lyrics else ""
         if key == "next_task" and self.tasks:

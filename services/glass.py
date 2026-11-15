@@ -43,6 +43,19 @@ def exclude_from_capture(hwnd):
         return False
 
 
+def set_capture_excluded(hwnd, on):
+    """Turn the island's exclusion from screenshots / screen sharing on or off."""
+    if sys.platform != "win32" or not hwnd:
+        return False
+    if on:
+        return exclude_from_capture(hwnd)
+    try:
+        import ctypes
+        return bool(ctypes.windll.user32.SetWindowDisplayAffinity(hwnd, 0))
+    except Exception:
+        return False
+
+
 def frosted(pixmap, strength=14):
     """Cheap, smooth blur: shrink a lot, then grow back with smoothing (twice)."""
     if pixmap is None or pixmap.isNull():

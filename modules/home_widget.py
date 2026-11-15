@@ -110,7 +110,10 @@ class HomeWidget(QWidget):
         self.tiles["focus"].setText(f"⏱️  {format_seconds(t.remaining_sec)}\n      {t.label}" if t.active
                                     else "⏱️  Focus\n      Start a timer")
         now = dt.datetime.now()
+        weather = isl.weather_service.text() if getattr(isl, "weather_service", None) else ""
         nxt = isl.day_service.next_prayer_text() if isl.day_service.prayer_enabled else f"{now:%a} {now.day} {now:%b}"
+        if weather:
+            nxt = f"{weather}  ·  {nxt}"
         self.tiles["day"].setText(f"🕒  {now:%H:%M}\n      {nxt}")
         from version import __version__
         self.tiles["settings"].setText(f"⚙️  Settings\n      v{__version__}")

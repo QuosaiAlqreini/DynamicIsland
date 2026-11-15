@@ -178,7 +178,8 @@ LIVE_KEYS = ["pill_left", "pill_center", "pill_right", "compact_width", "island_
              "visibility_mode", "peek_on_activity", "hide_in_fullscreen", "hide_for_apps", "lyrics_enabled",
              "through_mode", "through_open", "island_offset_x", "expand_on_hover", "click_to_expand",
              "notch_mode", "theme", "global_hotkey", "command_bar_hotkey", "push_windows_down",
-             "glass_material", "glass_blur", "music_in_notch"]
+             "glass_material", "glass_blur", "music_in_notch", "glass_follow_sun", "island_monitor",
+             "hide_from_capture"]
 
 
 class CustomizeDialog(QDialog):
@@ -284,6 +285,9 @@ class CustomizeDialog(QDialog):
         self.chk_blur = QCheckBox("Frosted blur of what's behind (the island is then left out of screenshots)")
         self.chk_blur.setChecked(bool(self.config.get("glass_blur", True)))
         form.addRow("", self.chk_blur)
+        self.chk_sun = QCheckBox("Follow the sun: light glass by day, dark glass at night")
+        self.chk_sun.setChecked(bool(self.config.get("glass_follow_sun", False)))
+        form.addRow("", self.chk_sun)
         self.chk_music = QCheckBox("While music plays, show the album cover and a waveform beside the notch")
         self.chk_music.setChecked(bool(self.config.get("music_in_notch", True)))
         form.addRow("", self.chk_music)
@@ -474,6 +478,21 @@ class CustomizeDialog(QDialog):
         self.rb_always.toggled.connect(lambda on: self.chk_peek.setEnabled(not on))
         self.chk_peek.setEnabled(not self.rb_always.isChecked())
 
+        mrow = QHBoxLayout()
+        mrow.addWidget(QLabel("Show it on"))
+        self.monitor_combo = QComboBox()
+        self.monitor_combo.addItem("The main screen", "primary")
+        self.monitor_combo.addItem("The screen my cursor is on", "cursor")
+        from PyQt6.QtWidgets import QApplication as _QA
+        for scr in _QA.screens():
+            g = scr.geometry()
+            self.monitor_combo.addItem(f"{scr.name()}  ({g.width()}×{g.height()})", scr.name())
+        self.monitor_combo.setCurrentIndex(max(0, self.monitor_combo.findData(self.config.get("island_monitor", "primary"))))
+        mrow.addWidget(self.monitor_combo, 1)
+        lay.addLayout(mrow)
+        self.chk_hide_capture = QCheckBox("Hide the island from screen sharing and screenshots (Teams, Zoom, Discord, OBS)")
+        self.chk_hide_capture.setChecked(bool(self.config.get("hide_from_capture", False)))
+        lay.addWidget(self.chk_hide_capture)
         self.chk_fullscreen = QCheckBox("Hide while a full-screen app is open (games, videos, presentations)")
         self.chk_fullscreen.setChecked(self.config.get("hide_in_fullscreen", True))
         lay.addWidget(self.chk_fullscreen)
@@ -604,8 +623,8 @@ class CustomizeDialog(QDialog):
             lay.addWidget(frame)
 
         isl = self.island
-        card("💧 Water & 🕌 prayer times", "Daily water goal and reminders; your city, calculation method "
-             "and minute adjustments for prayer times.", "Open water && prayer settings…",
+        card("💧 Water, 🕌 prayer, ☀️ weather & 🧘 breaks", "Your city (used for weather and prayer times), "
+             "water goal, break reminders and the little notices in the notch.", "Open day settings…",
              lambda: isl.day_widget.open_settings() if isl else None)
         card("🤖 AI accounts", "Connect Gemini, Claude, OpenAI or Ollama for the AI tab and screen help.",
              "Open AI settings…", lambda: isl.open_settings_dialog() if isl else None)
@@ -693,6 +712,9 @@ class CustomizeDialog(QDialog):
         c.set("glass_material", self.material_combo.currentData())
         c.set("glass_blur", self.chk_blur.isChecked())
         c.set("music_in_notch", self.chk_music.isChecked())
+        c.set("glass_follow_sun", self.chk_sun.isChecked())
+        c.set("island_monitor", self.monitor_combo.currentData())
+        c.set("hide_from_capture", self.chk_hide_capture.isChecked())
         c.set("push_windows_down", self.chk_reserve.isChecked())
         for key, edit in (("global_hotkey", self.hk_open), ("command_bar_hotkey", self.hk_bar)):
             text = edit.text().strip()

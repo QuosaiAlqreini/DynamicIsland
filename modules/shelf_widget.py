@@ -124,8 +124,18 @@ class ShelfWidget(QWidget):
 
         self.clip_list = QListWidget()
         self.clip_list.setToolTip("Click an entry to copy it again. 📌 = pinned (kept across restarts).")
+        self.clip_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.clip_list.setTextElideMode(Qt.TextElideMode.ElideRight)
         self.clip_list.itemClicked.connect(self._copy_clip)
+        self.clip_list.currentItemChanged.connect(lambda cur, _prev: self._update_chip(cur))
         clip_col.addWidget(self.clip_list)
+        # Chip: readable version of a JWT / Unix time / Base64 / JSON / tracking link
+        self.chip = QPushButton("")
+        self.chip.setToolTip("Copy the readable version")
+        self.chip.clicked.connect(self._copy_chip)
+        self.chip.hide()
+        self._chip_text = ""
+        clip_col.addWidget(self.chip)
 
         cbtns = QHBoxLayout()
         cbtns.setSpacing(4)
@@ -242,6 +252,23 @@ class ShelfWidget(QWidget):
             item.setData(TEXT_ROLE, text)
             item.setToolTip(text[:500])
             self.clip_list.addItem(item)
+
+    def _update_chip(self, item):
+        from services.clip_decode import decode
+        text = item.data(TEXT_ROLE) if item is not None else None
+        found = decode(text) if text else None
+        if not found:
+            self.chip.hide()
+            return
+        label, readable = found
+        self._chip_text = readable
+        self.chip.setText(f"✨ Copy as readable {label.split(' (')[0]}")
+        self.chip.setToolTip(f"{label}\n\n{readable[:1500]}")
+        self.chip.show()
+
+    def _copy_chip(self):
+        if self._chip_text:
+            self.clipboard_service.copy(self._chip_text)
 
     def _copy_clip(self, item):
         text = item.data(TEXT_ROLE)

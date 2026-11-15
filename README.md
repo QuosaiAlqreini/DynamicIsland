@@ -46,6 +46,16 @@ Right-click the island (or the tray icon) ➔ **`🎨 Customize Island…`**. A 
   * **Hide at the top:** the island tucks away above the screen and slides down when your cursor touches the top edge near it. Optionally it peeks down for finished timers, builds and alerts. Quick toggle: right-click ➔ `🫥 Hide at Top`.
   * Hover/click-to-open, notch mode and theme are all in one place.
 
+### 🧭 Always there + CrestIsland tools (NEW in 1.10)
+* **Shows up reliably when you open your laptop:** the island now lives on a chosen monitor (the main screen by default, or *the screen your cursor is on*) instead of wherever its window last was. After sleep, unlock or plugging / unplugging a monitor it puts itself back, re-appears if Windows hid it, and goes back on top. Pick the monitor in ⚙ Settings ➔ Visibility.
+* **Little notices:** Caps Lock on/off, charger plugged in / on battery, internet lost / back.
+* **Privacy dots:** an orange dot while an app uses your **microphone**, a green dot for your **camera**.
+* **Break reminders** (from time you actually use the PC): every 20 minutes look away for 20 seconds, every hour stand up. Paused while you're away, in full screen or in a focus session.
+* **Weather** (Open-Meteo, free): in the notch, on Home and in the command bar (type `weather`). Uses the city from Day settings.
+* **Colour picker:** 🎨 in the toolbar, `color` in the command bar, or a hotkey. Click any pixel to copy its HEX.
+* **Clipboard chips:** select a JWT, a Unix time, Base64, JSON or a link full of trackers and copy the readable / clean version.
+* **Song progress in the resting strip**, **Robo dances to your music**, **glass that follows the sun** (light by day, dark at night) and **hide from screen sharing** (Teams, Zoom, Discord, OBS).
+
 ### 🫧 Glass, soft motion & music (NEW in 1.9)
 * **Real glass:** the island is a translucent pane with a **frosted blur of whatever is behind it**, a thin light rim, a soft sheen and a soft shadow. Pastel colours that are easy on the eyes. Pick a material in ⚙ Settings ➔ Look & pill ➔ **Glass**: *Frosted* (default), *Smoked*, *Clear*, *Milk* (light, with dark text), *Tinted* or *Solid*.
   * The blur works by leaving the island out of screen captures (Windows 10 2004 or newer), so **the island doesn't appear in your screenshots or screen recordings**. Turn the blur off in the same place if you'd rather have the island in screenshots.

@@ -11,7 +11,7 @@ from PyQt6.QtCore import Qt, QRectF, QPointF, QTimer, pyqtSignal
 from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QPainterPath, QPixmap, QCursor
 from PyQt6.QtWidgets import QWidget
 
-MOOD_COLORS = {"idle": "success", "focused": "accent", "curious": "warning",
+MOOD_COLORS = {"dance": "accent_secondary", "idle": "success", "focused": "accent", "curious": "warning",
                "happy": "success", "wink": "accent_secondary", "dizzy": "danger"}
 
 
@@ -23,6 +23,9 @@ def paint_robo(p, rect, mood, phase, theme):
     cx, cy = rect.center().x(), rect.center().y()
     bob = math.sin(phase * (5 if mood == "focused" else 2)) * s * (0.03 if mood != "dizzy" else 0.0)
     tilt = math.sin(phase * 9) * 7 if mood == "dizzy" else (6 if mood == "curious" else 0)
+    if mood == "dance":                      # bops along to the music
+        bob = -abs(math.sin(phase * 4.2)) * s * 0.09
+        tilt = math.sin(phase * 2.1) * 9
     p.translate(cx, cy + bob)
     p.rotate(tilt)
     color = QColor(theme.get(MOOD_COLORS.get(mood, "accent"), "#00f0ff"))
@@ -54,7 +57,7 @@ def paint_robo(p, rect, mood, phase, theme):
     pen.setCapStyle(Qt.PenCapStyle.RoundCap)
     for side in (-1, 1):
         x = side * ex + look
-        if mood == "happy" or (mood == "wink" and side == 1):
+        if mood in ("happy", "dance") or (mood == "wink" and side == 1):
             p.setPen(pen)
             p.setBrush(Qt.BrushStyle.NoBrush)
             path = QPainterPath()

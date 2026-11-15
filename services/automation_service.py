@@ -56,6 +56,7 @@ ACTIONS = [
     ("see_screen", "Island: AI look at my screen", "Island", None),
     ("through_toggle", "Island: click-through pill on / off", "Island", None),
     ("island_visibility", "Island: show / hide", "Island", None),
+    ("color_picker", "Pick a colour from the screen", "Island", None),
     ("style_toggle", "Island: switch island / notch look", "Island", None),
     ("command_bar", "Island: command bar", "Island", None),
     ("add_task", "Island: add task / reminder", "Island", "Task phrase, e.g. Stretch in 30m (empty = open Tasks)"),
@@ -445,7 +446,7 @@ class AutomationService(QObject):
                 self.island_actions.get(action, lambda: None)()
             return True
         if action in ("island_toggle", "quick_note", "see_screen", "through_toggle", "command_bar",
-                      "island_visibility", "style_toggle"):
+                      "island_visibility", "style_toggle", "color_picker"):
             self.island_actions.get(action, lambda: None)()
             return True
         print(f"[automation] Unknown action: {action}")
