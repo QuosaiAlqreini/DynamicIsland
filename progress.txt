@@ -164,3 +164,9 @@ Started: 2026-10-31 16:50
 - Use `activated` (user-only) on combos to tick the box, not currentIndexChanged (also fires
   when the code fills the lists).
 - Reproduce user flows in a script before assuming a "doesn't work" report is about calculation.
+
+## US-033 - Town search stays in the chosen country
+- prayer.country_codes(group) derives ISO codes from ISO_DEFAULTS; filter_towns() keeps only
+  those codes and sorts by distance to the chosen city. One code -> countryCode param.
+- Test pitfall: monkeypatching requests.get catches other threads (weather); filter by URL.
+- Background threads must not emit on deleted QObjects: catch RuntimeError around emit.

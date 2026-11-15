@@ -76,9 +76,13 @@ class WeatherService(QObject):
                     "current": "temperature_2m,weather_code,is_day", "temperature_unit": unit,
                     "daily": "temperature_2m_max,temperature_2m_min,sunrise,sunset"})
                 r.raise_for_status()
-                self._done.emit(parse(r.json()))
+                result = parse(r.json())
             except Exception:
-                self._done.emit(None)
+                result = None
+            try:
+                self._done.emit(result)
+            except RuntimeError:
+                pass                      # the app closed while we were waiting
         threading.Thread(target=work, daemon=True).start()
 
     def _on_done(self, result):

@@ -465,6 +465,19 @@
       ],
       "priority": 32,
       "passes": true
+    },
+    {
+      "id": "US-033",
+      "title": "Town search only shows towns in the chosen country",
+      "description": "Bug: after choosing a country and city, 'Find a town' listed places from other countries.",
+      "acceptanceCriteria": [
+        "Search uses Open-Meteo countryCode for single-country choices and filters by country code for groups (Gulf, Scandinavia...)",
+        "Results sorted by distance to the chosen city, with state/region shown",
+        "'Custom location' still searches everywhere",
+        "Changing the country clears old results"
+      ],
+      "priority": 33,
+      "passes": true
     }
   ]
 }

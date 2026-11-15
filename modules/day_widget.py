@@ -171,7 +171,7 @@ class DaySettings(QDialog):
         # Search any town
         srow = QHBoxLayout()
         self.search = QLineEdit()
-        self.search.setPlaceholderText("Find any town, e.g. Gießen, Paderborn, Wolfsburg…")
+        self.search.setPlaceholderText("Find a town in this country, e.g. Gießen, Paderborn…")
         self.search.returnPressed.connect(self._search)
         srow.addWidget(self.search, 1)
         self.search_btn = QPushButton("🔎 Find")
@@ -324,6 +324,12 @@ class DaySettings(QDialog):
     def _on_country(self):
         self._fill_cities()
         country = self.country.currentData()
+        self.results.clear()                                 # old results were for another country
+        self.results.setVisible(False)
+        self._geo_results = []
+        self.search.setPlaceholderText(f"Find a town in {country}, e.g. Gießen, Paderborn…"
+                                       if country == "Germany" else
+                                       f"Find a town in {country}…" if country else "Find any town…")
         if country:
             self._fill_methods(prayer.suggested_method(country))
             self.city.setCurrentIndex(0)
@@ -341,17 +347,25 @@ class DaySettings(QDialog):
         if len(name) < 2:
             return
         self.search_btn.setEnabled(False)
-        self.search_note.setText("Searching…")
-        threading.Thread(target=self._geo_lookup, args=(name,), daemon=True).start()
+        group = self.country.currentData()
+        self.search_note.setText(f"Searching in {group}…" if group else "Searching…")
+        near = (self.lat.value(), self.lng.value()) if group else None
+        threading.Thread(target=self._geo_lookup, args=(name, group, near), daemon=True).start()
 
-    def _geo_lookup(self, name):
+    def _geo_lookup(self, name, group=None, near=None):
+        """Find towns, only inside the chosen country (closest to the chosen city first)."""
         try:
-            r = requests.get("https://geocoding-api.open-meteo.com/v1/search", timeout=8,
-                             params={"name": name, "count": 8, "language": "en", "format": "json"})
+            codes = prayer.country_codes(group) if group else []
+            params = {"name": name, "count": 100 if len(codes) != 1 else 30,
+                      "language": "en", "format": "json"}
+            if len(codes) == 1:
+                params["countryCode"] = codes[0]
+            r = requests.get("https://geocoding-api.open-meteo.com/v1/search", timeout=8, params=params)
             r.raise_for_status()
-            found = [(f"{x['name']}, {x.get('admin1', '')}, {x.get('country', '')}".replace(", ,", ","),
-                      float(x["latitude"]), float(x["longitude"])) for x in r.json().get("results", [])]
-            self._geo_done.emit(found, "" if found else f"No town called “{name}” found.")
+            found = prayer.filter_towns(r.json().get("results", []) or [], group, near)
+            where = f" in {group}" if group else ""
+            self._geo_done.emit(found, "" if found else f"No town called “{name}” found{where}. "
+                                "Check the spelling, or choose “Custom location” to search everywhere.")
         except Exception as e:
             self._geo_done.emit([], f"Search failed ({e.__class__.__name__}). Check the connection or "
                                     "enter the coordinates yourself.")

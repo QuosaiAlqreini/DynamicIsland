@@ -1250,3 +1250,43 @@ def test_choosing_a_place_turns_prayer_times_on(qapp):
     assert again.enabled.isChecked()
     c.set("prayer_enabled", False)
     assert not DaySettings(get_theme("glass")).enabled.isChecked()
+
+
+def test_town_search_stays_in_the_chosen_country(qapp, monkeypatch):
+    """Bug: searching a town listed places from other countries."""
+    from services import prayer
+    from styles import get_theme
+    from modules import day_widget
+    from modules.day_widget import DaySettings
+    world = [
+        {"name": "Frankfurt", "admin1": "Kentucky", "country": "United States", "country_code": "US",
+         "latitude": 38.2, "longitude": -84.87},
+        {"name": "Frankfurt (Oder)", "admin1": "Brandenburg", "country": "Germany", "country_code": "DE",
+         "latitude": 52.34, "longitude": 14.55},
+        {"name": "Frankfurt am Main", "admin1": "Hesse", "country": "Germany", "country_code": "DE",
+         "latitude": 50.11, "longitude": 8.68},
+    ]
+    # Only Germany, closest to Gießen (50.58, 8.68) first
+    towns = prayer.filter_towns(world, "Germany", near=(50.58, 8.68))
+    assert [t[0] for t in towns] == ["Frankfurt am Main, Hesse, Germany",
+                                     "Frankfurt (Oder), Brandenburg, Germany"]
+    assert len(prayer.filter_towns(world)) == 3                    # custom location: anywhere
+    assert set(prayer.country_codes("Gulf")) == {"AE", "QA", "KW", "BH", "OM"}
+
+    asked = []
+
+    class R:
+        def raise_for_status(self): pass
+        def json(self): return {"results": world}
+    monkeypatch.setattr(day_widget.requests, "get", lambda url, params=None, **k: (asked.append(params) if "geocoding" in url else None) or R())
+    d = DaySettings(get_theme("glass"))
+    d.country.setCurrentIndex(d.country.findData("Germany"))
+    d._geo_lookup("Frankfurt", "Germany", (50.58, 8.68))
+    _settle(qapp, 0.1)
+    assert asked[-1]["countryCode"] == "DE"
+    labels = [d.results.itemText(i) for i in range(d.results.count())]
+    assert labels and all(l.endswith("Germany") for l in labels)
+    d.country.setCurrentIndex(d.country.findData("Gulf"))          # several countries: filtered
+    d._geo_lookup("Frankfurt", "Gulf", None)
+    _settle(qapp, 0.1)
+    assert "countryCode" not in asked[-1] and d.results.count() == 0

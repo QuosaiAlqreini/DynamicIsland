@@ -75,6 +75,35 @@ def detect_default_location():
     return country, city, lat, lng
 
 
+def country_codes(group):
+    """ISO codes of the countries in one of our groups ('Gulf' -> ['AE', 'QA', ...])."""
+    return [code for code, (g, _city) in ISO_DEFAULTS.items() if g == group]
+
+
+def distance_km(lat1, lng1, lat2, lng2):
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dp, dl = p2 - p1, math.radians(lng2 - lng1)
+    a = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
+    return 6371 * 2 * math.asin(math.sqrt(min(1.0, a)))
+
+
+def filter_towns(results, group=None, near=None, limit=10):
+    """Geocoder results -> [(label, lat, lng)] only inside the chosen country, closest to
+    the chosen city first. results: Open-Meteo 'results' list."""
+    codes = set(country_codes(group)) if group else set()
+    out = []
+    for x in results:
+        if codes and (x.get("country_code") or "").upper() not in codes:
+            continue
+        lat, lng = float(x["latitude"]), float(x["longitude"])
+        parts = [x.get("name", ""), x.get("admin1", ""), x.get("country", "")]
+        label = ", ".join(p for p in parts if p)
+        out.append((label, lat, lng))
+    if near:
+        out.sort(key=lambda t: distance_km(near[0], near[1], t[1], t[2]))
+    return out[:limit]
+
+
 def country_for_place(label):
     """'Gießen, Hesse, Germany' -> 'Germany' (or None)."""
     tail = label.rsplit(",", 1)[-1].strip().lower()
