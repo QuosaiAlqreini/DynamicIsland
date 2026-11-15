@@ -1222,3 +1222,31 @@ def test_eco_mode_lightens_the_island(qapp):
     assert not w.memory_service.timer.isActive()
     w.set_eco_mode(False)
     assert w.sys_service.timer.interval() == 1000 and w.lyrics_service.enabled
+
+
+def test_choosing_a_place_turns_prayer_times_on(qapp):
+    """Bug: picking country + city and saving showed nothing, because a separate
+    'Show prayer times' box stayed unticked."""
+    from config import ConfigManager
+    from styles import get_theme
+    from modules.day_widget import DaySettings, DayWidget
+    from services.day_service import DayService
+    c = ConfigManager()
+    c.set("prayer_enabled", False)
+    c.set("prayer_location_set", False)
+    d = DaySettings(get_theme("glass"))
+    assert d.enabled.isChecked()                       # first setup: on by default
+    d.enabled.setChecked(False)
+    d.country.setCurrentIndex(d.country.findData("Germany"))
+    d.country.activated.emit(d.country.currentIndex())  # what a user's click sends
+    assert d.enabled.isChecked()
+    d.city.setCurrentIndex(d.city.findText("Berlin"))
+    d._save()
+    assert c.get("prayer_enabled") and c.get("prayer_city") == "Berlin"
+    w = DayWidget(get_theme("glass"), DayService())
+    w.refresh()
+    assert w.times_label.isVisibleTo(w) and "Fajr" in w.times_label.text()
+    again = DaySettings(get_theme("glass"))            # later visits keep your choice
+    assert again.enabled.isChecked()
+    c.set("prayer_enabled", False)
+    assert not DaySettings(get_theme("glass")).enabled.isChecked()

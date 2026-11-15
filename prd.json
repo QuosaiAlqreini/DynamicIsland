@@ -452,6 +452,19 @@
       ],
       "priority": 31,
       "passes": true
+    },
+    {
+      "id": "US-032",
+      "title": "Prayer times turn on when you choose a place",
+      "description": "Bug: after choosing country, city and method and saving, no prayer times appeared: the separate 'Show prayer times' box stayed unticked, and Save was hidden at the bottom of a long scrolling page.",
+      "acceptanceCriteria": [
+        "First setup: 'Show prayer times' is ticked by default",
+        "Choosing a country, city or searched town ticks it",
+        "Save / Cancel always visible below the scrolling page",
+        "After saving, the Day tab shows today's times and the pill flashes the next prayer"
+      ],
+      "priority": 32,
+      "passes": true
     }
   ]
 }

@@ -141,7 +141,9 @@ class DaySettings(QDialog):
 
         form.addRow(QLabel("<b>🕌 Prayer times</b> (calculated on this PC)"))
         self.enabled = QCheckBox("Show prayer times and remind me")
-        self.enabled.setChecked(bool(c.get("prayer_enabled", False)))
+        # First time here: on by default (you opened this to set it up)
+        self.enabled.setChecked(bool(c.get("prayer_enabled", False))
+                                or not c.get("prayer_location_set", False))
         form.addRow(self.enabled)
 
         # Country + city: what was saved, or (first time) a guess from Windows' region
@@ -160,6 +162,9 @@ class DaySettings(QDialog):
         self._fill_cities(saved_city)
         self.country.currentIndexChanged.connect(self._on_country)
         self.city.currentIndexChanged.connect(self._on_city)
+        # Choosing a place means you want the times: tick the box for you
+        for combo in (self.country, self.city):
+            combo.activated.connect(lambda *_: self.enabled.setChecked(True))
         form.addRow("Country", self.country)
         form.addRow("City", self.city)
 
@@ -267,15 +272,18 @@ class DaySettings(QDialog):
         self.pause = QCheckBox("Pause music at prayer time")
         self.pause.setChecked(bool(c.get("prayer_pause_media", False)))
         form.addRow(self.pause)
+        # Buttons stay visible below the scrolling page
         row = QHBoxLayout()
+        row.setContentsMargins(12, 6, 12, 10)
         row.addStretch()
         cancel = QPushButton("Cancel")
         cancel.clicked.connect(self.reject)
         ok = QPushButton("Save")
+        ok.setDefault(True)
         ok.clicked.connect(self._save)
         row.addWidget(cancel)
         row.addWidget(ok)
-        form.addRow(row)
+        outer.addLayout(row)
         self._update_preview()
 
     # ------------------------------------------------------------ presets
@@ -362,6 +370,7 @@ class DaySettings(QDialog):
     def _use_result(self, index):
         if 0 <= index < len(self._geo_results):
             label, lat, lng = self._geo_results[index]
+            self.enabled.setChecked(True)
             group = prayer.country_for_place(label)          # keep the town under its country
             self.country.blockSignals(True)
             self.country.setCurrentIndex(max(0, self.country.findData(group)) if group else 0)
@@ -486,6 +495,11 @@ class DayWidget(QWidget):
         runner = getattr(self.window(), "run_dialog", None)
         if (runner(dlg) if runner else dlg.exec()):
             self.day.tick()
+            self.refresh()
+            pill = getattr(self.window(), "idle_pill", None)
+            text = self.day.next_prayer_text()
+            if pill is not None and text:
+                pill.flash(f"🕌 {text}", self.theme["accent"], 3500)
             weather = getattr(self.window(), "weather_service", None)
             if weather is not None:
                 weather.refresh()
