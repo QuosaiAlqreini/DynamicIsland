@@ -412,7 +412,7 @@
         "Clear message when the model or server is missing"
       ],
       "priority": 28,
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-029",
@@ -424,7 +424,7 @@
         "Answers appear in the Agents feed; Robo shows thinking / done"
       ],
       "priority": 29,
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-030",

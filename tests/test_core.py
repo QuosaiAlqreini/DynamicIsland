@@ -1,3 +1,4 @@
+import json
 import os
 import sys
 import time
@@ -1058,3 +1059,124 @@ def test_prayer_location_defaults_and_consistency(qapp, monkeypatch):
     assert (again.country.currentData(), again.city.currentText()) == ("Germany", "Gießen")
     assert abs(again.lat.value() - 50.5841) < 0.001
     assert prayer.country_for_place("Linz, Upper Austria, Austria") == "Austria"
+
+
+# ------------------------------------------------------------------ AI (US-028 / US-029)
+class _Resp:
+    def __init__(self, code, data):
+        self.status_code, self._data = code, data
+        self.text = json.dumps(data)
+
+    def json(self):
+        return self._data
+
+
+def test_ai_uses_qwen_on_ollama_and_explains_problems(qapp, monkeypatch):
+    import requests
+    from services import ai_service
+    from services.ai_service import AIService, AIError, strip_thinking
+    svc = AIService()
+    svc.config.set("ai_provider", "ollama")
+    svc.config.set("ollama_model", "qwen3.5:4b")
+    sent = []
+
+    def fake_post(url, json=None, **kw):
+        sent.append((url, json))
+        return _Resp(200, {"message": {"content": "<think>hmm</think>Hello there"}})
+    monkeypatch.setattr(ai_service.requests, "post", fake_post)
+    assert svc.complete("hi", image_b64="AAA") == "Hello there"
+    url, body = sent[-1]
+    assert url.endswith("/api/chat") and body["model"] == "qwen3.5:4b"
+    assert body["messages"][-1]["images"] == ["AAA"] and body["think"] is False
+    assert svc.model_label() == "Local · qwen3.5:4b"
+    assert strip_thinking("<think>\nx\n</think>\n\nok") == "ok"
+
+    monkeypatch.setattr(ai_service.requests, "post",
+                        lambda *a, **k: _Resp(404, {"error": "model 'qwen3.5:4b' not found"}))
+    with pytest.raises(AIError, match="not downloaded"):
+        svc.complete("hi")
+
+    def refuse(*a, **k):
+        raise requests.exceptions.ConnectionError()
+    monkeypatch.setattr(ai_service.requests, "post", refuse)
+    with pytest.raises(AIError, match="Ollama is not running"):
+        svc.complete("hi")
+
+    # Free cloud (OpenAI-compatible): needs a key, sends it as a bearer token
+    svc.config.set("ai_provider", "openai_compat")
+    svc.config.set("openai_compat_url", "https://openrouter.ai/api/v1")
+    svc.config.set("openai_compat_key", "")
+    with pytest.raises(AIError, match="API key"):
+        svc.complete("hi")
+    svc.config.set("openai_compat_key", "k-123")
+    seen = {}
+
+    def fake_cloud(url, headers=None, json=None, **kw):
+        seen.update(url=url, auth=headers.get("Authorization"), model=json["model"])
+        return _Resp(200, {"choices": [{"message": {"content": "cloud ok"}}]})
+    monkeypatch.setattr(ai_service.requests, "post", fake_cloud)
+    assert svc.complete("hi") == "cloud ok"
+    assert seen == {"url": "https://openrouter.ai/api/v1/chat/completions", "auth": "Bearer k-123",
+                    "model": "qwen/qwen3-coder:free"}
+    svc.config.set("openai_compat_key", "")
+    svc.config.set("ai_provider", "ollama")
+
+
+def test_ai_chat_and_clipboard_reach_robo(qapp, monkeypatch):
+    """One AI place: the Agents/Robo tab asks, explains and fixes with the real AI."""
+    from PyQt6.QtWidgets import QApplication
+    from island_window import TAB_AI, TAB_AGENTS, TAB_KEY_TO_INDEX
+    from modules.tab_registry import TAB_REGISTRY, DEFAULT_TABS
+    assert TAB_AI == TAB_AGENTS and TAB_KEY_TO_INDEX["ai"] == TAB_AGENTS
+    assert "ai" not in TAB_REGISTRY and "ai" not in DEFAULT_TABS
+    w = _island()
+    prompts = []
+
+    def fake_complete(prompt, image_b64=None, history=None, timeout=120):
+        prompts.append((prompt, bool(image_b64), len(history or [])))
+        return f"answer {len(prompts)}"
+    monkeypatch.setattr(w.ai_service, "complete", fake_complete)
+    w.agents_widget.ask.setText("What is 2+2?")
+    w.agents_widget._submit_question()
+    _settle(qapp, 0.4)
+    w.agents_widget.ask.setText("And times 3?")
+    w.agents_widget._submit_question()
+    _settle(qapp, 0.4)
+    assert prompts[0] == ("What is 2+2?", False, 0) and prompts[1][2] == 2   # remembers the chat
+    QApplication.clipboard().setText("def f(:\n  pass")
+    w.agents_widget.clipboard_action.emit("fix")
+    _settle(qapp, 0.4)
+    assert "Fix the bugs" in prompts[-1][0] and "def f(:" in prompts[-1][0]
+    texts = [w.agents_widget.feed.item(i).text() for i in range(w.agents_widget.feed.count())]
+    assert texts[0].startswith("👾") and "answer 3" in texts[0]
+    assert any(t == "🙋 What is 2+2?" for t in texts)
+
+
+def test_ai_migration_and_settings_dialog(qapp):
+    from config import ConfigManager
+    from styles import get_theme
+    from services.ai_service import AIService
+    from modules.ai_settings import AISettingsDialog
+    c = ConfigManager()
+    for k, v in (("ai_v2_migrated", False), ("ai_provider", "gemini"), ("gemini_api_key", ""),
+                 ("ollama_model", "llama3"), ("tabs_visible", ["home", "media", "ai", "tools"])):
+        c.set(k, v)
+    w = _island()
+    assert c.get("ai_provider") == "ollama" and c.get("ollama_model") == "qwen3.5:4b"
+    assert "ai" not in c.get("tabs_visible") and "agents" in c.get("tabs_visible")
+    d = AISettingsDialog(get_theme("glass"), AIService())
+    assert not d.local_box.isHidden() and d.key_widget.isHidden()
+    d.provider.setCurrentIndex(d.provider.findData("openai_compat"))
+    assert not d.cloud_box.isHidden() and not d.key_widget.isHidden()
+    d.preset.setCurrentIndex(2)                              # Groq
+    d.key.setText("gsk-1")
+    d._save()
+    assert c.get("ai_provider") == "openai_compat" and c.get("openai_compat_key") == "gsk-1"
+    assert c.get("openai_compat_url") == "https://api.groq.com/openai/v1"
+    d.provider.setCurrentIndex(d.provider.findData("ollama"))
+    d.size.setCurrentIndex(1)
+    d._save()
+    assert c.get("ai_provider") == "ollama" and c.get("ollama_model") == "qwen3.5:2b"
+    c.set("openai_compat_key", "")
+    c.set("ollama_model", "qwen3.5:4b")
+    w.close()

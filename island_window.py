@@ -18,9 +18,8 @@ from styles import get_theme, THEMES
 from modules.pill_idle import IdlePillWidget
 from modules.media_widget import MediaWidget
 from modules.system_widget import SystemWidget
-from modules.ai_agent_widget import AIAgentWidget
 from modules.quick_tools_widget import QuickToolsWidget
-from modules.settings_dialog import SettingsDialog
+from modules.ai_settings import AISettingsDialog
 from modules.shelf_widget import ShelfWidget
 from modules.notes_widget import NotesWidget
 from modules.focus_widget import FocusWidget
@@ -56,6 +55,8 @@ TAB_KEY_TO_INDEX = {"media": TAB_MEDIA, "system": TAB_SYSTEM, "ai": TAB_AI, "too
                     "shelf": TAB_SHELF, "notes": TAB_NOTES, "focus": TAB_FOCUS, "keys": TAB_KEYS,
                     "info": TAB_INFO, "tasks": TAB_TASKS, "day": TAB_DAY, "agents": TAB_AGENTS,
                     "home": TAB_HOME}
+TAB_AI = TAB_AGENTS        # the AI lives in the Agents tab now (old index 2 is an empty slot)
+TAB_KEY_TO_INDEX["ai"] = TAB_AGENTS
 TAB_NAMES = dict(TAB_KEY_TO_INDEX, sys=TAB_SYSTEM, clipboard=TAB_SHELF,
                  timer=TAB_FOCUS, automations=TAB_KEYS, todo=TAB_TASKS, water=TAB_DAY,
                  prayer=TAB_DAY)
@@ -132,6 +133,7 @@ class DynamicIslandWindow(QWidget):
         self._migrate_new_defaults()
         self._migrate_look()
         self._migrate_glass()
+        self._migrate_ai()
 
         # State tracking
         self.is_expanded = False
@@ -195,6 +197,8 @@ class DynamicIslandWindow(QWidget):
         self._setup_keepalive()
         if self.config.get("remember_last_tab", True):
             last = self.config.get("last_tab", 0)
+            if last == 2:
+                last = TAB_AGENTS                        # the old AI tab
             if isinstance(last, int) and 0 <= last < self.stack.count():
                 self._switch_tab(last, save=False)
 
@@ -247,7 +251,7 @@ class DynamicIslandWindow(QWidget):
         self.stack = QStackedWidget(self.expanded_container)
         self.media_widget = MediaWidget(self.theme, self)
         self.sys_widget = SystemWidget(self.theme, self)
-        self.ai_widget = AIAgentWidget(self.theme, self)
+        self._unused_slot = QWidget()        # keeps tab indices stable (was the AI tab)
         self.tools_widget = QuickToolsWidget(self.theme, self)
         self.shelf_widget = ShelfWidget(self.theme, self.clipboard_service, self)
         self.notes_widget = NotesWidget(self.theme, self.clipboard_service, self)
@@ -260,7 +264,7 @@ class DynamicIslandWindow(QWidget):
 
         self.stack.addWidget(self.media_widget) # Index 0
         self.stack.addWidget(self.sys_widget)   # Index 1
-        self.stack.addWidget(self.ai_widget)    # Index 2
+        self.stack.addWidget(self._unused_slot) # Index 2 (old AI tab, merged into Agents)
         self.stack.addWidget(self.tools_widget) # Index 3
         self.stack.addWidget(self.shelf_widget) # Index 4
         self.stack.addWidget(self.notes_widget) # Index 5
@@ -610,14 +614,6 @@ class DynamicIslandWindow(QWidget):
 
         # AI updates & Vision
         self.ai_service.status_changed.connect(self.idle_pill.update_agent_status)
-        self.ai_service.status_changed.connect(self.ai_widget.update_agent_status)
-        self.ai_service.response_ready.connect(self.ai_widget.set_output)
-        self.ai_widget.ask_prompt_submitted.connect(self._on_prompt_submitted)
-        self.ai_widget.see_screen_requested.connect(self.ai_service.analyze_screen)
-        self.ai_widget.open_settings_requested.connect(self.open_settings_dialog)
-        self.ai_widget.clipboard_action_requested.connect(self.ai_service.process_clipboard)
-        self.ai_widget.coderabbit_requested.connect(self.ai_service.run_coderabbit_review)
-        self.ai_widget.ralph_requested.connect(self.ai_service.run_ralph_loop)
 
         self.idle_pill.activity_changed.connect(self._on_pill_activity)
 
@@ -683,6 +679,12 @@ class DynamicIslandWindow(QWidget):
         self.agent_service.needs_attention.connect(self._on_agent_attention)
         self.agents_widget.ask_about_window.connect(self._robo_dropped)
         self.agents_widget.question_submitted.connect(self._robo_question)
+        self.agents_widget.chat_submitted.connect(self._on_prompt_submitted)
+        self.agents_widget.see_screen.connect(self.ai_service.analyze_screen)
+        self.agents_widget.clipboard_action.connect(self.ai_service.process_clipboard)
+        self.agents_widget.open_ai_settings.connect(self.open_settings_dialog)
+        self.ai_service.status_changed.connect(self.agents_widget.set_ai_status)
+        self.agents_widget.set_model(self.ai_service.model_label())
         self.agents_widget.message.connect(lambda m: self.idle_pill.flash(m[:60], self.theme["accent"], 3500))
         self.ai_service.response_ready.connect(self._robo_answer)
 
@@ -763,6 +765,24 @@ class DynamicIslandWindow(QWidget):
         if self.config.get("pill_left", "robo") == "ai_dot":
             self.config.set("pill_left", "robo")
         self.config.set("agents_migrated", True)
+
+    def _migrate_ai(self):
+        """One AI place: the old AI tab merged into Agents/Robo; Qwen 3.5 (free) as the default AI."""
+        c = self.config
+        if c.get("ai_v2_migrated", False):
+            return
+        tabs = [t for t in c.get("tabs_visible", DEFAULT_TABS) if t != "ai"]
+        if "agents" not in tabs:
+            tabs.insert(1 if tabs else 0, "agents")
+        c.set("tabs_visible", tabs)
+        if c.get("ai_provider", "ollama") == "local" or (c.get("ai_provider") == "gemini"
+                                                          and not c.get("gemini_api_key", "")):
+            c.set("ai_provider", "ollama")
+        if c.get("ollama_model", "") in ("", "llama3", "llama3.2-vision"):
+            c.set("ollama_model", "qwen3.5:4b")
+        if c.get("active_ai_model", "").startswith("gemini-1."):
+            c.set("active_ai_model", "gemini-2.5-flash")
+        c.set("ai_v2_migrated", True)
 
     def _migrate_glass(self):
         if self.config.get("look_v3_migrated", False):
@@ -984,8 +1004,8 @@ class DynamicIslandWindow(QWidget):
             pixmap, f"This is a screenshot of the window “{title}”. {text}", title="Robo")
 
     def _robo_answer(self, title, content):
-        if title == "Robo":
-            self.agents_widget.show_answer(title, content)
+        self.agents_widget.show_answer(title, content)
+        if not self.is_expanded:
             self.idle_pill.flash("👾 Robo has an answer", self.theme["accent"], 5000)
 
     # ---------------------------------------------- Tasks / water / prayer
@@ -1099,15 +1119,10 @@ class DynamicIslandWindow(QWidget):
         self.ai_service.ask_ai(prompt, include_screen=auto_vision)
 
     def open_settings_dialog(self):
-        dlg = SettingsDialog(self.theme, self.ai_service, self.taskbar_service, self)
-        if self.run_dialog(dlg):
-            # Refresh theme and configuration
-            new_theme = self.config.get("theme", "obsidian")
-            self.set_theme(new_theme)
-            self.notch_mode = self.config.get("notch_mode", False)
-            provider = self.config.get("ai_provider", "gemini").upper()
-            self.ai_widget.update_model_label(f"AI: {provider}")
-            self.apply_customization()
+        """AI settings: Qwen 3.5 on this laptop (free), a free cloud, or your own key."""
+        self.run_dialog(AISettingsDialog(self.theme, self.ai_service, self))
+        self.ai_service.clear_history()
+        self.agents_widget.set_model(self.ai_service.model_label())
 
     def target_screen(self):
         """The monitor the island lives on: primary (default), the one with the cursor, or a chosen one.
@@ -1939,7 +1954,7 @@ class DynamicIslandWindow(QWidget):
         awake.triggered.connect(lambda on: self.automation_service.set_keep_awake(on))
 
         # AI Companion Quick Trigger
-        ai_action = menu.addAction("🤖 Open AI Companion")
+        ai_action = menu.addAction("👾 Ask Robo (AI)")
         ai_action.triggered.connect(lambda: self.open_tab(TAB_AI))
 
         # Screen vision quick trigger
@@ -1970,7 +1985,6 @@ class DynamicIslandWindow(QWidget):
         self.idle_pill.update_theme(self.theme)
         self.media_widget.update_theme(self.theme)
         self.sys_widget.update_theme(self.theme)
-        self.ai_widget.update_theme(self.theme)
         self.tools_widget.update_theme(self.theme)
         self.shelf_widget.update_theme(self.theme)
         self.notes_widget.update_theme(self.theme)

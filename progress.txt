@@ -130,3 +130,17 @@ Started: 2026-10-31 16:50
 - **Added:** notices, privacy dots, break reminders, weather, colour picker, clipboard chips, progress strip, dancing Robo, follow-the-sun glass, hide-from-capture, monitor choice.
 - **Not verified on real Windows:** WTS/power messages, ConsentStore privacy detection, colour picker overlay on multi-DPI setups.
 ---
+
+## US-028 / US-029 - Free Qwen 3.5 AI, one AI place (Robo tab)
+- AIService.complete(prompt, image, history) is the single engine; providers: ollama (default,
+  qwen3.5:4b via /api/chat, think=False, <think> blocks stripped), openai_compat (OpenRouter /
+  Groq / LM Studio), gemini (2.5-flash, key in header), claude, openai. Failures raise AIError
+  with a sentence telling the user what to do (Ollama not running, model not downloaded, key).
+- The old AI tab and the old SettingsDialog are gone. Stack index 2 is an empty slot so saved
+  tab indices stay valid; TAB_AI / "ai" alias to the Agents tab. One-time _migrate_ai.
+- Agents tab ask box: plain question -> chat (last 8 messages remembered); after Robo is dropped
+  on a window -> question about that capture. 👁 / 📋 / 🛠 / ⚙ buttons beside it.
+- ollama keep_alive "0" frees the model RAM after each answer (AI settings checkbox).
+- Pattern: a local `json=` parameter in a test fake shadows the module; import json at file top.
+- Windows CI crash (0xC000041D) came from overriding nativeEvent; wake is now detected by a
+  wall-clock gap between watchdog ticks instead. Do not override nativeEvent again.

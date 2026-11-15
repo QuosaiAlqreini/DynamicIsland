@@ -1,5 +1,5 @@
-"""Agents tab: Robo, live activity of Claude Code / Codex, Allow / Deny, and
-'ask Robo about a window'."""
+"""Agents tab: Robo, live activity of Claude Code / Codex, Allow / Deny, and the AI chat
+(ask anything, see the screen, explain / fix the clipboard, ask about a window)."""
 import time
 
 from PyQt6.QtCore import Qt, QPointF, pyqtSignal
@@ -13,8 +13,13 @@ from styles import badge_style, small_button_style, list_style, input_style, _rg
 
 
 class AgentsWidget(QWidget):
+    CHAT_HINT = "Ask Robo anything… (Enter)"
     ask_about_window = pyqtSignal(QPointF)       # global position where Robo was dropped
     question_submitted = pyqtSignal(str)         # question about the captured window
+    chat_submitted = pyqtSignal(str)             # a normal question for the AI
+    see_screen = pyqtSignal()
+    clipboard_action = pyqtSignal(str)           # "explain" | "fix"
+    open_ai_settings = pyqtSignal()
     message = pyqtSignal(str)
 
     def __init__(self, theme, agent_service, parent=None):
@@ -38,6 +43,11 @@ class AgentsWidget(QWidget):
         self.status.setWordWrap(True)
         self.status.setFixedWidth(120)
         left.addWidget(self.status)
+        self.model = QLabel("")
+        self.model.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.model.setFixedWidth(120)
+        self.model.setToolTip("The AI Robo uses · click ⚙ to change")
+        left.addWidget(self.model)
         self.btn_connect = QPushButton("🔗 Connect AI")
         self.btn_connect.clicked.connect(self._connect_menu)
         left.addWidget(self.btn_connect)
@@ -80,15 +90,32 @@ class AgentsWidget(QWidget):
         cl.addLayout(btns)
         right.addWidget(self.card)
 
+        ask_row = QHBoxLayout()
+        ask_row.setSpacing(4)
         self.ask = QLineEdit()
-        self.ask.setPlaceholderText("Ask Robo about this window… then press Enter")
+        self.ask.setPlaceholderText(self.CHAT_HINT)
         self.ask.returnPressed.connect(self._submit_question)
-        self.ask.hide()
-        right.addWidget(self.ask)
+        ask_row.addWidget(self.ask, 1)
+        self.tool_buttons = []
+        for icon, tip, slot in (("👁", "Look at my screen and explain it", self.see_screen.emit),
+                                ("📋", "Explain what I copied", lambda: self.clipboard_action.emit("explain")),
+                                ("🛠", "Fix the code I copied", lambda: self.clipboard_action.emit("fix")),
+                                ("⚙", "AI settings: Qwen 3.5 (free), cloud, keys", self.open_ai_settings.emit)):
+            b = QPushButton(icon)
+            b.setToolTip(tip)
+            b.setFixedSize(26, 24)
+            b.clicked.connect(slot)
+            ask_row.addWidget(b)
+            self.tool_buttons.append(b)
+        right.addLayout(ask_row)
+        self._window_question = False
 
         self.feed = QListWidget()
         self.feed.setWordWrap(True)
         self.feed.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.feed.setToolTip("Double-click a line to copy it")
+        self.feed.itemDoubleClicked.connect(self._copy_item)
+        self._answers = []                       # AI answers stay on top of the activity feed
         right.addWidget(self.feed, 1)
         root.addLayout(right, 1)
 
@@ -104,9 +131,10 @@ class AgentsWidget(QWidget):
         self.status.setStyleSheet(f"color: {t['text_secondary']}; font-size: 10px;")
         self.project.setStyleSheet(f"color: {t['text_secondary']}; font-size: 9px;")
         self.feed.setStyleSheet(list_style(t))
+        self.model.setStyleSheet(f"color: {t['accent']}; font-size: 9px;")
         self.ask.setStyleSheet(f"QLineEdit {{ {input_style(t)} border-color: {t['accent']}; }}")
         css = small_button_style(t)
-        for b in (self.btn_connect, self.btn_later):
+        for b in (self.btn_connect, self.btn_later, *self.tool_buttons):
             b.setStyleSheet(css)
         self.card.setStyleSheet(f"QFrame {{ background: {_rgba(t['warning'], 0.12)}; border: 1px solid {t['warning']};"
                                 f" border-radius: 10px; }} QLabel {{ border: none; background: transparent; }}")
@@ -154,22 +182,57 @@ class AgentsWidget(QWidget):
 
     def start_question(self, title):
         """Called after Robo was dropped on a window and it was captured."""
+        self._window_question = True
         self.ask.setPlaceholderText(f"Ask Robo about “{title[:40]}”… then press Enter")
-        self.ask.show()
         self.ask.setFocus()
         self.robo.flash_mood("curious", 4)
 
     def _submit_question(self):
-        text = self.ask.text().strip() or "What is on this window? Explain it briefly and point out anything important."
+        text = self.ask.text().strip()
+        if self._window_question:
+            text = text or "What is on this window? Explain it briefly and point out anything important."
+        elif not text:
+            return
         self.ask.clear()
-        self.ask.hide()
-        self.feed.insertItem(0, f"🙋 You asked Robo: {text}")
-        self.question_submitted.emit(text)
+        self._add_answer(f"🙋 {text}")
+        if self._window_question:
+            self._window_question = False
+            self.ask.setPlaceholderText(self.CHAT_HINT)
+            self.question_submitted.emit(text)
+        else:
+            self.chat_submitted.emit(text)
+        self.status.setText("Thinking…")
+        self.robo.flash_mood("curious", 3)
+
+    def _add_answer(self, text):
+        self._answers.insert(0, text)
+        del self._answers[12:]
+        self.refresh()
 
     def show_answer(self, title, content):
-        item = QListWidgetItem(f"👾 {content.strip()[:1200]}")
-        self.feed.insertItem(0, item)
-        self.robo.flash_mood("happy", 2.5)
+        head = "" if title in ("Robo", "") else f"{title}: "
+        self._add_answer(f"👾 {head}{content.strip()[:4000]}")
+        self.robo.flash_mood("wink" if title == "AI not ready" else "happy", 2.5)
+        self.refresh_status()
+
+    def set_ai_status(self, status, _color=""):
+        if status in ("Thinking", "Coding", "Seeing Screen"):
+            self.status.setText({"Thinking": "Thinking…", "Coding": "Fixing…",
+                                 "Seeing Screen": "Looking…"}[status])
+        else:
+            self.refresh_status()
+
+    def set_model(self, text):
+        self.model.setText(text)
+
+    def _copy_item(self, item):
+        from PyQt6.QtWidgets import QApplication
+        text = item.text()
+        for prefix in ("👾 ", "🙋 "):
+            if text.startswith(prefix):
+                text = text[len(prefix):]
+        QApplication.clipboard().setText(text)
+        self.message.emit("📋 Copied")
 
     # ------------------------------------------------------------ refresh
     def refresh_status(self):
@@ -204,6 +267,8 @@ class AgentsWidget(QWidget):
         self.project.setText(" · ".join(f"{s['agent']}: {s['project']}" for s in sessions[:2] if s["project"]))
 
         self.feed.clear()
+        for text in self._answers:
+            self.feed.addItem(text)
         for s in sessions[:2]:
             if s["status"] == "done" and s["answer"]:
                 self.feed.addItem(f"💬 {s['agent']} said: {s['answer'][:600]}")
@@ -211,8 +276,8 @@ class AgentsWidget(QWidget):
             stamp = time.strftime("%H:%M", time.localtime(entry["t"]))
             self.feed.addItem(f"{stamp}  {entry['icon']} {entry['text']}")
         if self.feed.count() == 0:
-            hint = QListWidgetItem("Nothing yet. Click “Connect AI”, then start Claude Code: you'll see "
-                                   "every file it reads and command it runs, and can allow or deny its "
-                                   "requests right here.")
+            hint = QListWidgetItem("Ask Robo anything above (👁 looks at your screen, 📋/🛠 explain or fix "
+                                   "what you copied). Click “Connect AI” to follow Claude Code here: every "
+                                   "file it reads, every command, and Allow / Deny for its requests.")
             hint.setFlags(Qt.ItemFlag.NoItemFlags)
             self.feed.addItem(hint)

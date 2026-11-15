@@ -33,15 +33,21 @@ DEFAULT_CONFIG = {
     "sound_effects": True,
     "agent_status": "Idle",
     "agent_mode": "Antigravity",
-    "ai_provider": "gemini",
+    "ai_provider": "ollama",           # free: Qwen 3.5 on this laptop through Ollama
     "gemini_api_key": "",
     "claude_api_key": "",
     "openai_api_key": "",
     "ollama_url": "http://localhost:11434",
-    "ollama_model": "llama3",
+    "ollama_model": "qwen3.5:4b",
+    "ollama_keep_alive": "5m",         # how long the model stays in RAM after a question
+    "openai_compat_url": "https://openrouter.ai/api/v1",
+    "openai_compat_model": "qwen/qwen3-coder:free",
+    "openai_compat_key": "",
+    "claude_model": "claude-sonnet-5-5",
+    "openai_model": "gpt-4o-mini",
     "ai_vision_enabled": True,
     "ai_auto_capture_screen": False,
-    "active_ai_model": "gemini-1.5-flash",
+    "active_ai_model": "gemini-2.5-flash",
     "taskbar_autohide_macbook": False,
     "taskbar_translucent": True,
     "taskbar_hide_clock_tray": False,
@@ -85,7 +91,7 @@ DEFAULT_CONFIG = {
     "agent_auto_open": True,           # open the island when an agent asks for permission
     "agent_sounds": True,
     "agent_inline_prompt": True,       # Allow / Deny right in the folded island
-    "tabs_visible": ["home", "agents", "media", "shelf", "tasks", "notes", "focus", "day", "keys", "ai", "system", "tools"],
+    "tabs_visible": ["home", "agents", "media", "shelf", "tasks", "notes", "focus", "day", "keys", "system", "tools"],
     "hide_for_apps": [],               # exe names: hide the island while one is in front
     # --- Tasks, water, prayer, pomodoro, lyrics, command bar ---
     "tasks": [],

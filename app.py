@@ -208,7 +208,7 @@ def main():
     def open_ai():
         island.open_tab(TAB_AI)
 
-    ai_action = tray_menu.addAction("🤖 Open AI Companion")
+    ai_action = tray_menu.addAction("👾 Ask Robo (AI)")
     ai_action.triggered.connect(open_ai)
 
     # Screen Vision Trigger
