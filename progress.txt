@@ -156,3 +156,4 @@ Started: 2026-10-31 16:50
 - eco_mode: _blur_wanted() replaces direct glass_blur checks; lyrics/weather `enabled` and
   build watch check eco; apply_eco() sets timer intervals; ollama keep_alive 0; on fold the
   process calls EmptyWorkingSet (psapi, argtypes set) to hand pages back to Windows.
+- Never open a file for writing and read it in the same expression (truncates first): version.py was emptied once.
