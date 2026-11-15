@@ -41,6 +41,7 @@ DEFAULT_CONFIG = {
     "ollama_url": "http://localhost:11434",
     "ollama_model": "qwen3.5:4b",
     "ollama_keep_alive": "5m",         # how long the model stays in RAM after a question
+    "account_tool": "claude",          # claude | codex | gemini (signed-in official tools)
     "openai_compat_url": "https://openrouter.ai/api/v1",
     "openai_compat_model": "qwen/qwen3-coder:free",
     "openai_compat_key": "",

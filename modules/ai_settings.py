@@ -1,6 +1,7 @@
 """AI settings: which AI Robo uses.
 
-Free first: Qwen 3.5 running on this laptop through Ollama (no account, private, works
+Your own account: sign in with Claude (Pro/Max), ChatGPT (Plus/Pro) or Google (Gemini)
+through their official tools: no API key needed. Free and local: Qwen 3.5 running on this laptop through Ollama (no account, private, works
 offline). Or a free cloud (OpenRouter / Groq / LM Studio, any OpenAI-compatible API),
 or your own Gemini / Claude / OpenAI key."""
 import threading
@@ -16,6 +17,7 @@ from config import ConfigManager
 from services.ai_service import (PROVIDERS, QWEN_SIZES, AIError, ollama_status, ollama_installed,
                                  ollama_pull)
 from styles import dialog_style
+from services import account_ai
 
 KEY_FIELDS = {"openai_compat": "openai_compat_key", "gemini": "gemini_api_key",
               "claude": "claude_api_key", "openai": "openai_api_key"}
@@ -41,8 +43,8 @@ class AISettingsDialog(QDialog):
         c = self.config
 
         root = QVBoxLayout(self)
-        intro = QLabel("Robo answers with the AI you pick here. <b>Qwen 3.5 on this laptop</b> is free, "
-                       "private and works offline.")
+        intro = QLabel("Robo answers with the AI you pick here: <b>your own Claude / ChatGPT / Gemini "
+                       "account</b>, <b>Qwen 3.5 on this laptop</b> (free, private, offline), or an API key.")
         intro.setWordWrap(True)
         root.addWidget(intro)
 
@@ -80,6 +82,32 @@ class AISettingsDialog(QDialog):
         self.keep.setChecked(c.get("ollama_keep_alive", "5m") == "0")
         lf.addRow(self.keep)
         form.addRow(self.local_box)
+
+        # --- your own account (official sign-in tools)
+        self.account_box = QWidget()
+        af = QFormLayout(self.account_box)
+        af.setContentsMargins(0, 0, 0, 0)
+        self.tool = QComboBox()
+        for key, t in account_ai.TOOLS.items():
+            self.tool.addItem(t["label"], key)
+        self.tool.setCurrentIndex(max(0, self.tool.findData(c.get("account_tool", "claude"))))
+        self.tool.currentIndexChanged.connect(self._check_account)
+        af.addRow("Account", self.tool)
+        arow = QHBoxLayout()
+        self.btn_install = QPushButton("1 · Install")
+        self.btn_install.setToolTip("Installs the official app of that company (needs Node.js)")
+        self.btn_install.clicked.connect(self._install_tool)
+        self.btn_login = QPushButton("2 · Sign in")
+        self.btn_login.setToolTip("Opens a window where you sign in with your account")
+        self.btn_login.clicked.connect(self._login_tool)
+        arow.addWidget(self.btn_install)
+        arow.addWidget(self.btn_login)
+        arow.addStretch()
+        af.addRow(arow)
+        self.account_state = QLabel("")
+        self.account_state.setWordWrap(True)
+        af.addRow(self.account_state)
+        form.addRow(self.account_box)
 
         # --- cloud / keys
         self.cloud_box = QWidget()
@@ -155,7 +183,9 @@ class AISettingsDialog(QDialog):
 
     def _store_fields(self, p):
         """Remember what was typed for provider p (so switching back and forth keeps it)."""
-        if not p or p == "ollama":
+        if p == "account":
+            self.config.data["account_tool"] = self.tool.currentData()
+        if not p or p in ("ollama", "account"):
             return
         self.config.data[PROVIDERS[p]["model_key"]] = self.model.text().strip() or PROVIDERS[p]["default_model"]
         self.config.data[KEY_FIELDS[p]] = self.key.text().strip()
@@ -166,11 +196,14 @@ class AISettingsDialog(QDialog):
         self._store_fields(self._loaded_provider)
         p = self.provider.currentData()
         self._loaded_provider = p
-        local = p == "ollama"
-        self.local_box.setVisible(local)
+        local = p in ("ollama", "account")
+        self.local_box.setVisible(p == "ollama")
+        self.account_box.setVisible(p == "account")
         self.cloud_box.setVisible(p == "openai_compat")
         for w in (self.model, self.model_label, self.key_widget, self.key_label):
             w.setVisible(not local)
+        if p == "account":
+            self._check_account()
         if not local:
             self.model.setText(self.config.get(PROVIDERS[p]["model_key"], "") or PROVIDERS[p]["default_model"])
             self.key.setText(self.config.get(KEY_FIELDS[p], ""))
@@ -199,6 +232,46 @@ class AISettingsDialog(QDialog):
     def _save_and_close(self):
         self._save()
         self.accept()
+
+    # ------------------------------------------------------------ own account
+    def _check_account(self, *_):
+        tool = self.tool.currentData()
+        info = account_ai.TOOLS[tool]
+        if account_ai.find(tool):
+            self.account_state.setText(f"✅ {info['name']} is installed. If you haven't yet, press "
+                                       f"“2 · Sign in”. Then “Save & test”.")
+            self.btn_install.setEnabled(False)
+        else:
+            need_node = "" if account_ai.npm_available() else (
+                " First install Node.js (nodejs.org, LTS): the button opens its download page.")
+            self.account_state.setText(f"Press “1 · Install” to add the official {info['name']} app, "
+                                       f"then “2 · Sign in”.{need_node}")
+            self.btn_install.setEnabled(True)
+
+    def _install_tool(self):
+        tool = self.tool.currentData()
+        if not account_ai.npm_available():
+            webbrowser.open("https://nodejs.org/en/download")
+            self.account_state.setText("Install Node.js (LTS), restart the island, then press “1 · Install” again.")
+            return
+        try:
+            account_ai.open_terminal(account_ai.install_command(tool))
+            self.account_state.setText("Installing in the black window… When it finishes, close it and "
+                                       "press “2 · Sign in”.")
+        except Exception as e:
+            self.account_state.setText(f"⚠️ {e}")
+
+    def _login_tool(self):
+        tool = self.tool.currentData()
+        if not account_ai.find(tool):
+            self._check_account()
+            return
+        try:
+            account_ai.open_terminal(account_ai.login_command(tool))
+            self.account_state.setText(account_ai.TOOLS[tool]["login_hint"] +
+                                       " Then press “Save & test” here.")
+        except Exception as e:
+            self.account_state.setText(f"⚠️ {e}")
 
     # ------------------------------------------------------------ local setup
     def _base(self):

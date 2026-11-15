@@ -170,3 +170,9 @@ Started: 2026-10-31 16:50
   those codes and sorts by distance to the chosen city. One code -> countryCode param.
 - Test pitfall: monkeypatching requests.get catches other threads (weather); filter by URL.
 - Background threads must not emit on deleted QObjects: catch RuntimeError around emit.
+
+## US-034 - My own AI account
+- services/account_ai.py runs `claude -p`, `codex exec ... -` (answer via --output-last-message),
+  or `gemini` with the prompt on stdin (avoids Windows .cmd argument-quoting problems).
+- find() also checks %APPDATA%\npm because apps started at login may lack it on PATH.
+- Tests inject a fake `runner` instead of touching real CLIs.

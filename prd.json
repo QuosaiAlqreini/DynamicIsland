@@ -478,6 +478,20 @@
       ],
       "priority": 33,
       "passes": true
+    },
+    {
+      "id": "US-034",
+      "title": "Use my own AI account (sign in) instead of only local / API keys",
+      "description": "Robo can answer with the user's Claude Pro/Max, ChatGPT Plus/Pro or Google (Gemini) account through the official sign-in CLIs.",
+      "acceptanceCriteria": [
+        "Provider 'Sign in with my account' with Claude / ChatGPT (Codex) / Gemini",
+        "1 · Install (npm, or Node.js download page) and 2 · Sign in (opens the official login) buttons",
+        "Questions go on stdin, never the command line; screenshots passed as a temp image file",
+        "Clear message when not installed or not signed in",
+        "API keys and local Qwen remain available"
+      ],
+      "priority": 34,
+      "passes": true
     }
   ]
 }

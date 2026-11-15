@@ -17,6 +17,8 @@ SYSTEM_PROMPT = ("You are Robo, a helpful assistant living in a Windows notch ap
 
 # Free first. Qwen 3.5 runs on the laptop through Ollama: free, private, offline.
 PROVIDERS = {
+    "account": {"label": "Sign in with my account: Claude, ChatGPT or Gemini", "short": "Account",
+                "model_key": "account_tool", "default_model": "claude"},
     "ollama": {"label": "Qwen 3.5 on this laptop (free, private · Ollama)", "short": "Local",
                "model_key": "ollama_model", "default_model": "qwen3.5:4b"},
     "openai_compat": {"label": "Free cloud: OpenRouter / Groq / LM Studio (OpenAI-compatible)",
@@ -143,6 +145,10 @@ class AIService(QObject):
 
     def model_label(self):
         p = self.provider()
+        if p == "account":
+            from services.account_ai import TOOLS
+            tool = self.model_name(p)
+            return f"{TOOLS.get(tool, TOOLS['claude'])['name']} account"
         return f"{PROVIDERS[p]['short']} · {self.model_name(p)}"
 
     def model_name(self, p=None):
@@ -157,6 +163,13 @@ class AIService(QObject):
         model = self.model_name(p)
         msgs = [{"role": "system", "content": SYSTEM_PROMPT}] + list(history or [])
         try:
+            if p == "account":
+                from services import account_ai
+                try:
+                    return account_ai.ask(model if model in account_ai.TOOLS else "claude", prompt,
+                                          history, image_b64, SYSTEM_PROMPT, timeout=max(timeout, 180))
+                except account_ai.AccountError as e:
+                    raise AIError(str(e))
             if p == "ollama":
                 return self._ollama_chat(model, msgs, prompt, image_b64, timeout)
             if p in ("openai_compat", "openai"):

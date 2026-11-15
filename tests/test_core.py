@@ -1290,3 +1290,58 @@ def test_town_search_stays_in_the_chosen_country(qapp, monkeypatch):
     d._geo_lookup("Frankfurt", "Gulf", None)
     _settle(qapp, 0.1)
     assert "countryCode" not in asked[-1] and d.results.count() == 0
+
+
+def test_ai_with_my_own_account(qapp, monkeypatch, tmp_path):
+    """Robo can answer through a signed-in Claude / ChatGPT (Codex) / Gemini tool: no API key."""
+    import subprocess
+    from services import account_ai
+    from services.ai_service import AIService, AIError
+    calls = []
+
+    def runner(cmd, input=None, cwd=None, **kw):
+        calls.append((cmd, input, cwd))
+        if "--output-last-message" in cmd:
+            out = cmd[cmd.index("--output-last-message") + 1]
+            open(out, "w", encoding="utf-8").write("codex answer")
+            return subprocess.CompletedProcess(cmd, 0, "progress noise", "")
+        return subprocess.CompletedProcess(cmd, 0, "claude answer\n", "")
+    monkeypatch.setattr(account_ai, "find", lambda tool: f"/bin/{tool}")
+    hist = [{"role": "user", "content": "hi"}, {"role": "assistant", "content": "hello"}]
+    assert account_ai.ask("claude", "What now?", hist, runner=runner) == "claude answer"
+    cmd, text, _ = calls[-1]
+    assert cmd == ["/bin/claude", "-p", "--output-format", "text"]
+    assert "What now?" not in " ".join(cmd) and text.endswith("What now?") and "User: hi" in text
+    assert account_ai.ask("codex", "Q", image_b64="aGVsbG8=", runner=runner) == "codex answer"
+    cmd, text, cwd = calls[-1]
+    assert cmd[:2] == ["/bin/codex", "exec"] and cmd[-1] == "-" and "--image" in cmd
+    assert cmd[cmd.index("--image") + 1].startswith(cwd)
+    account_ai.ask("gemini", "Q", image_b64="aGVsbG8=", runner=runner)
+    assert calls[-1][0] == ["/bin/gemini"] and "@" in calls[-1][1]
+
+    def logged_out(cmd, **kw):
+        return subprocess.CompletedProcess(cmd, 1, "", "Error: please run /login (401 Unauthorized)")
+    with pytest.raises(account_ai.AccountError, match="Sign in"):
+        account_ai.ask("claude", "Q", runner=logged_out)
+    monkeypatch.setattr(account_ai, "find", lambda tool: None)
+    with pytest.raises(account_ai.AccountError, match="Install"):
+        account_ai.ask("claude", "Q")
+
+    # Through the AI service + settings window
+    from config import ConfigManager
+    from styles import get_theme
+    from modules.ai_settings import AISettingsDialog
+    c = ConfigManager()
+    c.set("ai_provider", "account")
+    c.set("account_tool", "codex")
+    svc = AIService()
+    assert svc.model_label() == "ChatGPT account"
+    monkeypatch.setattr(account_ai, "ask", lambda tool, prompt, *a, **k: f"{tool}:{prompt}")
+    assert svc.complete("hey") == "codex:hey"
+    d = AISettingsDialog(get_theme("glass"), svc)
+    assert not d.account_box.isHidden() and d.key_widget.isHidden() and d.local_box.isHidden()
+    assert d.btn_install.isEnabled()                     # not installed (find -> None)
+    d.tool.setCurrentIndex(d.tool.findData("gemini"))
+    d._save()
+    assert c.get("account_tool") == "gemini" and c.get("ai_provider") == "account"
+    c.set("ai_provider", "ollama")

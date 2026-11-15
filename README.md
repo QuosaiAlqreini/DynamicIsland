@@ -262,6 +262,12 @@ All AI lives in the **👾 Robo** tab: type a question, **👁** looks at your s
 you copied, **🛠** fixes the code you copied. Drop Robo on a window to ask about that window.
 Double-click any answer to copy it.
 
+**Your own account (no API key): Claude, ChatGPT or Gemini**
+Choose *Sign in with my account* in ⚙ AI settings, pick Claude (Pro/Max), ChatGPT (Plus/Pro) or
+Gemini (free with a Google account), press **1 · Install** (the company's official app; needs
+[Node.js](https://nodejs.org)), then **2 · Sign in** and log in in your browser. Robo then answers
+with your subscription. The sign-in stays inside the official tool; this app never sees your password.
+
 **Free and private (default): Qwen 3.5 on your laptop**
 1. Install [Ollama](https://ollama.com/download/windows) and open it once.
 2. In the Robo tab press **⚙** ➔ **⬇ Download qwen3.5:4b** (one time, ~3 GB, progress bar shown).
