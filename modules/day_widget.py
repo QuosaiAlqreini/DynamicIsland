@@ -144,14 +144,19 @@ class DaySettings(QDialog):
         self.enabled.setChecked(bool(c.get("prayer_enabled", False)))
         form.addRow(self.enabled)
 
-        # Country + city presets
-        saved_city = c.get("prayer_city", "Riyadh") or ""
+        # Country + city: what was saved, or (first time) a guess from Windows' region
+        if c.get("prayer_location_set", False):
+            saved_city = c.get("prayer_city", "") or ""
+            saved_country = c.get("prayer_country") or prayer.country_of(saved_city)
+            start_lat, start_lng = float(c.get("prayer_lat", 0)), float(c.get("prayer_lng", 0))
+        else:
+            saved_country, saved_city, start_lat, start_lng = prayer.detect_default_location()
         self.country = QComboBox()
         self.country.addItem("Custom location", None)
         for name in prayer.COUNTRIES:
             self.country.addItem(name, name)
         self.city = QComboBox()
-        self.country.setCurrentIndex(max(0, self.country.findData(prayer.country_of(saved_city))))
+        self.country.setCurrentIndex(max(0, self.country.findData(saved_country)))
         self._fill_cities(saved_city)
         self.country.currentIndexChanged.connect(self._on_country)
         self.city.currentIndexChanged.connect(self._on_city)
@@ -179,11 +184,11 @@ class DaySettings(QDialog):
         self.lat = QDoubleSpinBox()
         self.lat.setRange(-66, 66)
         self.lat.setDecimals(4)
-        self.lat.setValue(float(c.get("prayer_lat", 24.7136)))
+        self.lat.setValue(start_lat)
         self.lng = QDoubleSpinBox()
         self.lng.setRange(-180, 180)
         self.lng.setDecimals(4)
-        self.lng.setValue(float(c.get("prayer_lng", 46.6753)))
+        self.lng.setValue(start_lng)
         coords = QHBoxLayout()
         coords.addWidget(QLabel("Lat"))
         coords.addWidget(self.lat)
@@ -192,9 +197,9 @@ class DaySettings(QDialog):
         form.addRow("Location", coords)
 
         self.method = QComboBox()
-        for key, spec in prayer.METHODS.items():
-            self.method.addItem(spec[0], key)
-        self.method.setCurrentIndex(max(0, self.method.findData(c.get("prayer_method", "mwl"))))
+        start_method = (c.get("prayer_method", "mwl") if c.get("prayer_location_set", False)
+                        else prayer.suggested_method(saved_country))
+        self._fill_methods(start_method)
         form.addRow("Method", self.method)
         self.high_lat = QComboBox()
         for key, label in prayer.HIGH_LAT_RULES.items():
@@ -274,6 +279,24 @@ class DaySettings(QDialog):
         self._update_preview()
 
     # ------------------------------------------------------------ presets
+    def _fill_methods(self, select=None):
+        """Plain method names; the one that fits the chosen country first, marked ★."""
+        country = self.country.currentData()
+        best = prayer.suggested_method(country) if country else None
+        select = select or self.method.currentData() or best or "mwl"
+        self.method.blockSignals(True)
+        self.method.clear()
+        order = ([best] if best else []) + [k for k in prayer.METHODS if k != best]
+        for key in order:
+            label = prayer.METHODS[key][0]
+            if key == best:
+                label = f"★ {label} — recommended for {country}"
+            self.method.addItem(label, key)
+            if key == best and len(order) > 1:
+                self.method.insertSeparator(self.method.count())
+        self.method.setCurrentIndex(max(0, self.method.findData(select)))
+        self.method.blockSignals(False)
+
     def _fill_cities(self, select=None):
         self.city.blockSignals(True)
         self.city.clear()
@@ -283,6 +306,9 @@ class DaySettings(QDialog):
                 self.city.addItem(name, name)
             idx = self.city.findData(select) if select else -1
             self.city.setCurrentIndex(idx if idx >= 0 else -1)
+            if select and self.city.findData(select) < 0 and select not in prayer.CITIES:
+                self.city.addItem(select, select)          # a searched town in this country
+                self.city.setCurrentIndex(self.city.count() - 1)
         else:
             self.city.addItem(select or "Custom coordinates", None)
         self.city.blockSignals(False)
@@ -291,8 +317,9 @@ class DaySettings(QDialog):
         self._fill_cities()
         country = self.country.currentData()
         if country:
-            self.method.setCurrentIndex(max(0, self.method.findData(prayer.suggested_method(country))))
+            self._fill_methods(prayer.suggested_method(country))
             self.city.setCurrentIndex(0)
+            self._on_city()
 
     def _on_city(self):
         name = self.city.currentData()
@@ -335,14 +362,14 @@ class DaySettings(QDialog):
     def _use_result(self, index):
         if 0 <= index < len(self._geo_results):
             label, lat, lng = self._geo_results[index]
+            group = prayer.country_for_place(label)          # keep the town under its country
             self.country.blockSignals(True)
-            self.country.setCurrentIndex(0)     # custom location
+            self.country.setCurrentIndex(max(0, self.country.findData(group)) if group else 0)
             self.country.blockSignals(False)
             self._fill_cities(label.split(",")[0])
             self.lat.setValue(lat)
             self.lng.setValue(lng)
-            if "Germany" in label or "Deutschland" in label:
-                self.method.setCurrentIndex(max(0, self.method.findData("mwl")))
+            self._fill_methods(prayer.suggested_method(group) if group else None)
             self.search_note.setText(f"Using {label}.")
 
     # ------------------------------------------------------------ preview
@@ -362,6 +389,8 @@ class DaySettings(QDialog):
         c.set("water_remind_min", self.remind.value())
         c.set("prayer_enabled", self.enabled.isChecked())
         c.set("prayer_city", self.city.currentData() or self.city.currentText() or "")
+        c.set("prayer_country", self.country.currentData())
+        c.set("prayer_location_set", True)
         c.set("prayer_lat", self.lat.value())
         c.set("prayer_lng", self.lng.value())
         c.set("prayer_method", self.method.currentData())

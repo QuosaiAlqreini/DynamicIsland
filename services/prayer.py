@@ -8,19 +8,80 @@ import datetime as dt
 import math
 
 # key: (label, fajr angle, isha angle or None, isha minutes after maghrib or None)
+# Labels are just the method's name: the settings mark which one fits the chosen country.
 METHODS = {
-    "mwl": ("Muslim World League (common in Europe)", 18.0, 17.0, None),
-    "diyanet": ("Diyanet / DITIB (Turkey, Turkish mosques in Germany)", 18.0, 17.0, None),
-    "umm_al_qura": ("Umm al-Qura (Saudi Arabia)", 18.5, None, 90),
+    "mwl": ("Muslim World League", 18.0, 17.0, None),
+    "diyanet": ("Diyanet (used by DITIB mosques)", 18.0, 17.0, None),
+    "umm_al_qura": ("Umm al-Qura", 18.5, None, 90),
     "egypt": ("Egyptian General Authority", 19.5, 17.5, None),
-    "isna": ("ISNA (North America)", 15.0, 15.0, None),
-    "uoif": ("UOIF (France, 12°)", 12.0, 12.0, None),
-    "karachi": ("Karachi (Pakistan, India)", 18.0, 18.0, None),
-    "gulf": ("Gulf region (UAE, Qatar)", 19.5, None, 90),
+    "isna": ("ISNA", 15.0, 15.0, None),
+    "uoif": ("UOIF (12°)", 12.0, 12.0, None),
+    "karachi": ("University of Islamic Sciences, Karachi", 18.0, 18.0, None),
+    "gulf": ("Gulf region", 19.5, None, 90),
     "kuwait": ("Kuwait", 18.0, 17.5, None),
-    "jakim": ("JAKIM (Malaysia)", 20.0, 18.0, None),
-    "kemenag": ("Kemenag (Indonesia)", 20.0, 18.0, None),
+    "jakim": ("JAKIM", 20.0, 18.0, None),
+    "kemenag": ("Kemenag", 20.0, 18.0, None),
 }
+
+# ISO country code (from Windows' region setting) -> (country group, city) for a sensible default
+ISO_DEFAULTS = {
+    "DE": ("Germany", "Berlin"), "AT": ("Austria", "Wien (Vienna)"), "CH": ("Switzerland", "Zürich"),
+    "NL": ("Netherlands", "Amsterdam"), "BE": ("Belgium", "Brussel / Bruxelles"), "FR": ("France", "Paris"),
+    "GB": ("United Kingdom", "London"), "SE": ("Scandinavia", "Stockholm"), "NO": ("Scandinavia", "Oslo"),
+    "DK": ("Scandinavia", "Copenhagen"), "FI": ("Scandinavia", "Helsinki"),
+    "SA": ("Saudi Arabia", "Riyadh"), "JO": ("Jordan", "Amman"), "AE": ("Gulf", "Dubai"), "QA": ("Gulf", "Doha"),
+    "KW": ("Gulf", "Kuwait City"), "BH": ("Gulf", "Manama"), "OM": ("Gulf", "Muscat"),
+    "EG": ("Middle East & Africa", "Cairo"), "IQ": ("Middle East & Africa", "Baghdad"),
+    "LB": ("Middle East & Africa", "Beirut"), "SY": ("Middle East & Africa", "Damascus"),
+    "PS": ("Middle East & Africa", "Jerusalem"), "TR": ("Middle East & Africa", "Istanbul"),
+    "MA": ("Middle East & Africa", "Casablanca"), "TN": ("Middle East & Africa", "Tunis"),
+    "DZ": ("Middle East & Africa", "Algiers"), "PK": ("Asia", "Karachi"), "ID": ("Asia", "Jakarta"),
+    "MY": ("Asia", "Kuala Lumpur"), "BD": ("Asia", "Dhaka"), "US": ("Americas & Oceania", "New York"),
+    "CA": ("Americas & Oceania", "Toronto"), "AU": ("Americas & Oceania", "Sydney"),
+}
+# Words a geocoder uses for each country group (to keep a searched town under its country)
+COUNTRY_WORDS = {
+    "Germany": ("Germany", "Deutschland"), "Austria": ("Austria", "Österreich"),
+    "Switzerland": ("Switzerland", "Schweiz", "Suisse"), "Netherlands": ("Netherlands", "Nederland"),
+    "Belgium": ("Belgium", "België", "Belgique"), "France": ("France",), "United Kingdom": ("United Kingdom",),
+    "Scandinavia": ("Sweden", "Norway", "Denmark", "Finland"), "Saudi Arabia": ("Saudi Arabia",),
+    "Jordan": ("Jordan",), "Gulf": ("United Arab Emirates", "Qatar", "Kuwait", "Bahrain", "Oman"),
+    "Middle East & Africa": ("Egypt", "Iraq", "Lebanon", "Syria", "Palestine", "Turkey", "Türkiye",
+                             "Morocco", "Tunisia", "Algeria"),
+    "Asia": ("Pakistan", "Indonesia", "Malaysia", "Bangladesh"),
+    "Americas & Oceania": ("United States", "Canada", "Australia"),
+}
+
+
+def windows_country_code():
+    """Two-letter country from Windows' region setting (e.g. 'DE'), or ''."""
+    import sys
+    if sys.platform != "win32":
+        return ""
+    try:
+        import ctypes
+        buf = ctypes.create_unicode_buffer(16)
+        if ctypes.windll.kernel32.GetUserDefaultGeoName(buf, 16):
+            return buf.value.upper()
+    except Exception:
+        pass
+    return ""
+
+
+def detect_default_location():
+    """(country group, city, lat, lng) for someone who never set a location."""
+    country, city = ISO_DEFAULTS.get(windows_country_code(), ("Saudi Arabia", "Riyadh"))
+    lat, lng = COUNTRIES[country][city]
+    return country, city, lat, lng
+
+
+def country_for_place(label):
+    """'Gießen, Hesse, Germany' -> 'Germany' (or None)."""
+    tail = label.rsplit(",", 1)[-1].strip().lower()
+    for group, words in COUNTRY_WORDS.items():
+        if any(tail == w.lower() for w in words):
+            return group
+    return None
 
 # What to do when the sun never gets low enough for Fajr/Isha (northern summers)
 HIGH_LAT_RULES = {

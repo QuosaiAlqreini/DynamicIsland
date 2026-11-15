@@ -1030,3 +1030,26 @@ def test_color_formats_and_contrast():
     f = color_formats(QColor("#3b6fd8"))
     assert f["hex"] == "#3B6FD8" and f["rgb"] == "rgb(59, 111, 216)" and f["hsl"].startswith("hsl(")
     assert round(contrast_ratio(QColor("#000000"), QColor("#ffffff")), 1) == 21.0
+
+
+def test_prayer_location_defaults_and_consistency(qapp, monkeypatch):
+    from config import ConfigManager
+    from services import prayer
+    from modules.day_widget import DaySettings
+    from styles import get_theme
+    c = ConfigManager()
+    c.set("prayer_location_set", False)
+    monkeypatch.setattr(prayer, "windows_country_code", lambda: "DE")
+    d = DaySettings(get_theme("glass"))
+    assert (d.country.currentData(), d.city.currentData()) == ("Germany", "Berlin")      # not Riyadh
+    assert d.method.currentData() == "mwl" and "recommended for Germany" in d.method.currentText()
+    # No other country names in the plain method list
+    names = [d.method.itemText(i) for i in range(d.method.count()) if d.method.itemData(i)]
+    assert not any(w in " ".join(names[1:]) for w in ("Saudi", "Turkey", "France", "Pakistan", "Malaysia"))
+    d._on_geo_results([("Gießen, Hesse, Germany", 50.5841, 8.6784)], "")
+    assert d.country.currentData() == "Germany" and d.city.currentText() == "Gießen"
+    d._save()
+    again = DaySettings(get_theme("glass"))
+    assert (again.country.currentData(), again.city.currentText()) == ("Germany", "Gießen")
+    assert abs(again.lat.value() - 50.5841) < 0.001
+    assert prayer.country_for_place("Linz, Upper Austria, Austria") == "Austria"

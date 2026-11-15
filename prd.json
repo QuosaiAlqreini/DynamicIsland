@@ -399,6 +399,59 @@
       "priority": 27,
       "passes": true,
       "notes": "crestisland.app is a JS demo; features taken from github.com/andrealo20/crest README"
+    },
+    {
+      "id": "US-028",
+      "title": "Free Qwen 3.5 AI (local via Ollama) + OpenAI-compatible provider; real AI answers everywhere",
+      "description": "Use Qwen 3.5 for free. Every AI action (chat, see screen, explain / fix clipboard) must call the chosen model instead of placeholder text.",
+      "acceptanceCriteria": [
+        "Provider 'Qwen 3.5 (free, on this PC)' via Ollama is the default, model qwen3.5:4b, editable",
+        "One-click setup: detects Ollama, downloads the model with progress, or links to the Ollama download",
+        "Provider 'OpenAI-compatible' (OpenRouter, Groq, LM Studio...) with base URL, model, key",
+        "ask_ai / process_clipboard / vision use the configured provider for gemini, claude, openai, ollama/qwen, compatible",
+        "Clear message when the model or server is missing"
+      ],
+      "priority": 28,
+      "passes": false
+    },
+    {
+      "id": "US-029",
+      "title": "One AI place: Agents tab also does everything the AI tab did",
+      "description": "Remove the duplicate AI tab; the Agents tab gets the chat box, See screen, Explain / Fix clipboard and the AI settings link.",
+      "acceptanceCriteria": [
+        "Agents tab: ask box with answer feed, 👁 See screen, Explain / Fix clipboard, model label + settings",
+        "AI tab removed from the tab bar (one-time migration) and from defaults",
+        "Answers appear in the Agents feed; Robo shows thinking / done"
+      ],
+      "priority": 29,
+      "passes": false
+    },
+    {
+      "id": "US-030",
+      "title": "Prayer settings without contradictions",
+      "description": "The location and method shown must match what the user picked.",
+      "acceptanceCriteria": [
+        "Default location from the Windows time zone (e.g. Europe/Berlin -> Germany, Berlin), not Riyadh",
+        "Method list shows plain method names; the method recommended for the chosen country is first and marked",
+        "A searched town in a listed country keeps that country selected",
+        "Re-opening shows exactly what was saved"
+      ],
+      "priority": 30,
+      "passes": true,
+      "notes": "Default from GetUserDefaultGeoName; plain method names with ★ recommended; searched towns keep their country; tested"
+    },
+    {
+      "id": "US-031",
+      "title": "What uses my RAM + saving resources",
+      "description": "Show the biggest memory users (grouped by app), the island's own usage, and an Eco mode that makes the island lighter.",
+      "acceptanceCriteria": [
+        "System tab lists top apps by RAM (grouped processes) with share of total, refreshed in the background",
+        "Island's own RAM shown",
+        "Eco mode: stops blur, lyrics, build watcher, weather, slows polling and animations; one switch",
+        "Tips on how to free RAM shown next to the list"
+      ],
+      "priority": 31,
+      "passes": false
     }
   ]
 }
