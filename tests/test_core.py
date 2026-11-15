@@ -155,6 +155,11 @@ def test_autohide_tuck_and_reveal(qapp):
     _settle(qapp)
     assert not w.isVisible()
     w.set_user_hidden(False)
+    # Waking from sleep (a long gap between watchdog ticks) clears a stale fullscreen hide
+    w.fullscreen_hidden = True
+    w._last_tick -= 600
+    w._keepalive_tick()
+    assert not w.fullscreen_hidden
     _settle(qapp)
     assert w.isVisible() and w.windowOpacity() == 1.0
     c.set("visibility_mode", "always")
@@ -854,7 +859,7 @@ def test_settings_dialog_runs_above_island(qapp, monkeypatch):
     from PyQt6.QtWidgets import QDialog
     from services import win_input
     calls = []
-    monkeypatch.setattr(win_input, "set_topmost", lambda hwnd, on: calls.append(on))
+    monkeypatch.setattr(win_input, "set_topmost", lambda hwnd, on: calls.append(on) if hwnd == int(w.winId()) else None)
     w = _island()
     w.show()
     d = QDialog()

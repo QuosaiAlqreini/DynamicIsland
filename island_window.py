@@ -1495,22 +1495,7 @@ class DynamicIslandWindow(QWidget):
         self._cursor_screen = None
         self._dialog_depth = 0
         QTimer.singleShot(3000, self.recover)          # settle after a slow login / autostart
-        self._session_registered = False
-
-    def _register_session_events(self):
-        """Ask Windows to tell us about lock / unlock (once the native window really exists)."""
-        if self._session_registered or not win_input.IS_WINDOWS or QApplication.platformName() != "windows":
-            return
-        self._session_registered = True
-        try:
-            import ctypes
-            from ctypes import wintypes
-            wts = ctypes.WinDLL("wtsapi32")
-            wts.WTSRegisterSessionNotification.argtypes = (wintypes.HWND, wintypes.DWORD)
-            wts.WTSRegisterSessionNotification.restype = wintypes.BOOL
-            wts.WTSRegisterSessionNotification(wintypes.HWND(int(self.winId())), 0)
-        except Exception as e:
-            print(f"[island] lock/unlock notifications unavailable: {e}")
+        self._last_tick = time.time()
 
     def _should_be_visible(self):
         return not (self.user_hidden or self.fullscreen_hidden or getattr(self, "_leaving", False)
@@ -1538,6 +1523,15 @@ class DynamicIslandWindow(QWidget):
             self.update()
 
     def _keepalive_tick(self):
+        # A big gap between ticks means the laptop slept (or the session was locked):
+        # bring the island back. Wall-clock time jumps over sleep; the timer does not run.
+        now = time.time()
+        slept = now - getattr(self, "_last_tick", now) > 15
+        self._last_tick = now
+        if slept:
+            self.fullscreen_hidden = False
+            for delay in (800, 3000):
+                QTimer.singleShot(delay, self.recover)
         self._sun_ticks = getattr(self, "_sun_ticks", 0) + 1
         if self._sun_ticks % 24 == 0:          # about once a minute
             self._apply_sun_theme()
@@ -1557,30 +1551,12 @@ class DynamicIslandWindow(QWidget):
         elif self.windowHandle() and not getattr(self, "_dialog_depth", 0) and win_input.IS_WINDOWS:
             win_input.set_topmost(int(self.winId()), True)     # Windows can drop topmost after sleep
 
-    def nativeEvent(self, event_type, message):
-        if event_type in (b"windows_generic_MSG", "windows_generic_MSG"):
-            try:
-                from ctypes import wintypes
-                msg = wintypes.MSG.from_address(int(message))
-                WM_POWERBROADCAST, WM_WTSSESSION_CHANGE, WM_DISPLAYCHANGE = 0x0218, 0x02B1, 0x007E
-                resumed = msg.message == WM_POWERBROADCAST and msg.wParam in (0x7, 0x12)   # resume
-                unlocked = msg.message == WM_WTSSESSION_CHANGE and msg.wParam in (0x1, 0x8, 0x5)  # connect/unlock/logon
-                if resumed or unlocked or msg.message == WM_DISPLAYCHANGE:
-                    self.fullscreen_hidden = False
-                    for delay in (800, 3000):
-                        QTimer.singleShot(delay, self.recover)
-            except Exception:
-                pass
-        return super().nativeEvent(event_type, message)
-
     def showEvent(self, event):
         super().showEvent(event)
         # The native window may be new: re-apply the click-through style
         if self.windowHandle():
             win_input.set_click_through(int(self.winId()), self._passthrough)
         self.showEvent_reserve()
-        if hasattr(self, "_session_registered"):
-            QTimer.singleShot(0, self._register_session_events)
 
     def _hot_zone(self):
         """Pill area plus the strip between it and the top edge of the screen."""
